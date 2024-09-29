@@ -793,6 +793,9 @@ function get_sentence_length_dict(data_dict)
         end
     end
 
+    println("Median of sequence length: ", Statistics.median(collect(values(id_length_dict))))
+    println("Mean of sequence length: ", mean(collect(values(id_length_dict))))
+
     return id_length_dict
 end
 
