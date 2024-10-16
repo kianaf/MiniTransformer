@@ -1,3 +1,6 @@
 .DS_Store
+src/__pycache__
 mini_transformer_venv
 devcontainer.json
+env
+runs
