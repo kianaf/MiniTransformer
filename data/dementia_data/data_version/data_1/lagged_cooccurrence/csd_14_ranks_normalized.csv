@@ -1,0 +1,16 @@
+lag0,lag1,lag2
+csd_14,csd_14,csd_14
+csd,csd,csd
+livalone,livalone,livalone
+medication_increase,medication_increase,medication_decrease
+medication_decrease,hier,hier
+hier,medication_decrease,cod_w
+cod_w,ani_15,mms
+ani_15,cod_w,ani_15
+vil_15,vil_15,cou_15
+isa_15,fru_15,isa_15
+fru_15,cou_15,vil_15
+cou_15,isa_15,dem
+benton,benton,benton
+mms,mms,fru_15
+dem,dem,medication_increase
