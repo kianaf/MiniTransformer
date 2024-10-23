@@ -158,9 +158,12 @@ function get_last_data_dir_number(save_path)
 end
 
 
-function get_dementia_data()
-
-    return CSV.read("../../../dementia_data/forStratos_T0T30_3772subjects_classified.csv", DataFrame)
+function get_dementia_data(; datapath=nothing)
+    if isnothing(datapath)
+        return CSV.read("../../../dementia_data/forStratos_T0T30_3772subjects_classified.csv", DataFrame)
+    else
+        return CSV.read(datapath, DataFrame)
+    end
 end
 
 
@@ -190,13 +193,13 @@ function get_dictionary_plot_id_datapoint(df)
 
 end
 
-function prepare_sequences_for_dementia_data()
+function prepare_sequences_for_dementia_data(; datapath=nothing)
 
     current_data_path = get_data_dir("/data_version")
 
-    mkdir(current_data_path)
+    !isdir(current_data_path) && mkdir(current_data_path)
 
-    df = get_dementia_data()
+    df = get_dementia_data(; datapath=datapath)
 
     included_events = ["id", "visit", "time", "dem", "mms", "cou_15", "ani_15", "fru_15", "vil_15", "isa_15", "benton", "cod_w", "csd", "csd_14", "livalone", "hier", "medication_increase", "medication_decrease"]
 
