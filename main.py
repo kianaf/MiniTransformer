@@ -5,98 +5,125 @@ from torch.utils.data import Dataset, DataLoader
 import time
 import importlib
 import torch.optim as optim
+from torchsummary import summary
 
 
-from src.data_preparation import SimulatedDataset
+from src.data_preparation import SimulatedDataset, collate_function
 from src.transformers import MiniTransformer
 import src.transformers as transformerFunctions
 from src.transformers import init_weights_recursive
+from src.transformers import print_parameters
+from src.transformers import create_custom_mask, create_distance_to_end_matrix, create_pairwise_distance_matrix
 from src.evaluation import calculate_bench1_loss, calculate_bench2_loss, evaluate_mini_transformer
+from src.statistical_testing import statistical_testing, print_p_values
+import torch.autograd.profiler as profiler
 
-
-# # Check if MPS is available on the current machine
-# if torch.backends.mps.is_available():
-#     device = torch.device("mps")
-#     print("Using MPS backend for GPU acceleration.")
-# else:
-#     device = torch.device("cpu")
-#     print("MPS not available, using CPU instead.")
+    # # Check if MPS is available on the current machine
+    # if torch.backends.mps.is_available():
+    #     device = torch.device("mps")
+    #     print("Using MPS backend for GPU acceleration.")
+    # else:
+    #     device = torch.device("cpu")
+    #     print("MPS not available, using CPU instead.")
 
 device = torch.device("cpu")
 
-# Start the timer
-start_time = time.time()
+
 
 
 # Set the random seed for reproducibility
-seed = 11
-torch.manual_seed(seed)
-
-
-# def linear_julia_style(input, weight, bias=None):
-#     if input.dim() == 2 and bias is not None:
-#         # fused op is marginally faster
-#         return torch.addmm(bias, input, weight.t())
-#     output = (weight.t().matmul(input.t())).t()
-#     if bias is not None:
-#         output += bias
-#     return output
-
-
+# seed = 42
+# torch.manual_seed(seed)
 
 
 if __name__ == '__main__':
 
     # Hyperparameters
-    n = 200  # sample size
-    batch_size = 1  # Batch size for loading data
-    p = 3 # number of features
-    mdim_head_dimension = 1 # dimension of the head
-    nheads = 16 # number of heads
-    ncum = 2 # number of cumulants
-    maxlen = 10 # maximum length of the sequence
-    # cumveclen = ncum * (maxlen-2) # length of the cumulative vector
 
-    learning_rate = 1e-2
-    lambda_l2 = 0.001
-    EPOCHS = 200
-
+    n = 200                 # sample size
+    batch_size = 1          # Batch size for loading data
+    p = 10                   # number of features
+    mdim_head_dimension = 8 # dimension of the head
+    nheads = 16             # number of heads
+    ncum = 2                # number of cumulants
+    maxlen = 10             # maximum length of the sequence
+    learning_rate = 1e-4
+    lambda_l2 = 1e-3
+    EPOCHS = 500
+    mask = create_custom_mask(maxlen, device)
+    distance_to_end_matrix = create_distance_to_end_matrix(maxlen, device)
+    pairwise_distance_matrix = create_pairwise_distance_matrix(maxlen, device)
 
     # Create Dataset and DataLoader
-    train_dataset = SimulatedDataset(n, maxlen=maxlen, device = device)
-    dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+    train_dataset = SimulatedDataset(n, p, maxlen=maxlen, device = device)
     
     
-    model = MiniTransformer(p, nheads, mdim_head_dimension, ncum, device)
 
-    # model.apply(init_weights_recursive)
+    dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_function,  num_workers=0)
+    
+    model = MiniTransformer(p, nheads, mdim_head_dimension, ncum, mask, distance_to_end_matrix, pairwise_distance_matrix, device)
+
+    model.apply(init_weights_recursive)
     model.to(device)
 
+    model = torch.compile(model)
+    # Start the timer
+    start_time = time.time()
 
     # Define optimizer
-    # optimizer = optim.Adam(model.parameters(), lr= learning_rate)
-    optimizer = optim.SGD(model.parameters(), lr= learning_rate, weight_decay=lambda_l2)
-    # optimizer = optim.SGD(model.parameters(), lr= learning_rate)
+    # optimizer = optim.Adam(model.parameters(), lr= learning_rate, weight_decay=lambda_l2)
+    optimizer = optim.Adam(model.parameters(), lr= learning_rate, weight_decay=lambda_l2)
+    
+    
     transformerFunctions.train_mini_transformer(model, dataloader, optimizer, lambda_l2, EPOCHS, device)
+
+
+    # # Enable profiling
+    # with profiler.profile() as prof:
+
+    #     model.eval() 
+    #     # Forward pass
+    #     output = model(train_dataset.data)
+    #     # Backward pass (this will profile the backward pass as well)
+    #     output.backward(torch.ones_like(output))
+
+    # # Print profiling results
+    # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
+
 
 
     # End the timer
     end_time = time.time()
 
     # Calculate and print the execution time
-    execution_time = end_time - start_time
+    execution_time = end_time - start_time 
     print(f"Execution time: {execution_time:.6f} seconds")
 
     # reload transformer.py
-    # importlib.reload(transformerFunctions)
+    importlib.reload(transformerFunctions)
     print(transformerFunctions.count_parameters(model))
 
-    eval_dataset = SimulatedDataset(1000, maxlen=4, device = device)
+    eval_dataset = SimulatedDataset(1000, p, maxlen=4, device = device)
+    eval_dataloader = DataLoader(eval_dataset, batch_size=1, shuffle=True, collate_fn=collate_function, num_workers=0)
 
     dimave, bench1loss = calculate_bench1_loss(train_dataset.data, eval_dataset.data)
-    bench2loss = calculate_bench2_loss(train_dataset.data, eval_dataset.data, dimave)
-    model_loss = evaluate_mini_transformer(eval_dataset.data, model)
+    bench2loss = calculate_bench2_loss(train_dataset.data, eval_dataloader.dataset, dimave)
+    model_loss = evaluate_mini_transformer(eval_dataloader, model)
 
     print("bench1loss ", bench1loss)
     print("bench2loss", bench2loss)
     print("model_loss", model_loss.item()) 
+
+
+    # print_parameters(model)
+
+
+    target_sample_size = 7
+    nrepp = 10
+    predindex = 2
+
+
+    avepval = statistical_testing(model, p, predindex, nrepp, target_sample_size)
+    print_p_values(avepval)
+
+

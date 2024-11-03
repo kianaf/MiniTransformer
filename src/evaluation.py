@@ -7,23 +7,22 @@ def calculate_bench1_loss(train_data, eval_data):
     averaging over all timepoints of all the sequences
     """
 
-    p = train_data.shape[2]
-    n = train_data.shape[0]
-    predn = eval_data.shape[0]
+    p = train_data[0].shape[1]
+
+    predn = len(eval_data)
 
     #This is for baseline1: Bench1 which averages over all timepoints of all the sequences
     
-    # dimave = [0.0] * p 
-
-    # train_data_plain = torch.cat(train_data, dim=0)
-    dimave = torch.mean(train_data.view(-1, 3), dim=0)
+    train_data_plain = torch.cat(train_data, dim=0)
+    dimave = torch.mean(train_data_plain, dim=0)
+    
 
 
     benchdelta = 0.0
     benchloss = 0.0
 
     for i in range(predn):
-        benchdelta = eval_data[i, 2:, :] - dimave
+        benchdelta = eval_data[i][-1, :] - dimave
         benchloss += torch.mean(benchdelta * benchdelta).item()
 
     benchloss /= predn
@@ -39,10 +38,11 @@ def calculate_bench2_loss(train_data, eval_data, dimave):
     Looking at pos2, and based on the probability of pos3 given pos2, predict pos3
     """
 
+    p = train_data[0].shape[1]
 
-    p = train_data.shape[2]
-    n = train_data.shape[0]
-    predn = eval_data.shape[0]
+    predn = len(eval_data)
+
+    n = len(train_data)
 
     #This is for baseline2: Bench2 which averages over all timepoints of all the sequences
     
@@ -60,15 +60,15 @@ def calculate_bench2_loss(train_data, eval_data, dimave):
 
     for i in range(n):
 
-        curn = train_data.shape[1] 
+        curn = train_data[i].shape[0] 
 
         for j in range(curn):
-            if (train_data[i, j, pos2] == 1.0):
+            if (train_data[i][j, pos2] == 1.0):
                 pos2count1+= 1
-                pos3ave1 += train_data[i, j, pos3]
+                pos3ave1 += train_data[i][j, pos3]
             else:
                 pos2count0+= 1
-                pos3ave0 += train_data[i, j, pos3]
+                pos3ave0 += train_data[i][j, pos3]
 
     pos3ave1 = pos3ave1/pos2count1
     pos3ave0 = pos3ave0/pos2count0
@@ -82,15 +82,18 @@ def calculate_bench2_loss(train_data, eval_data, dimave):
     for i in range(predn):
         for j in range(p):
             if j == pos3:
-                if eval_data[i, -1, pos2] == 1.0:
-                    bench2pred = pos3ave1
+                if eval_data[i][-2, pos3] == 1.0:   
+                    bench2pred = 0.0
                 else:
-                    bench2pred = pos3ave0
+                    if eval_data[i][-2, pos2] == 1.0:
+                        bench2pred = pos3ave1
+                    else:
+                        bench2pred = pos3ave0
             else:
                 bench2pred = dimave[j]
 
-            bench2delta = eval_data[i, 2:, j] - bench2pred
-            bench2loss += torch.mean(bench2delta * bench2delta)
+            bench2delta = eval_data[i][-1, j] - bench2pred
+            bench2loss += bench2delta * bench2delta
 
 
     bench2loss /= predn*p
@@ -102,8 +105,10 @@ def evaluate_mini_transformer(eval_data, model):
     """
     Evaluate the MiniTransformer model on the evaluation data.
     """
-
-    pred = model(eval_data)
-    loss = nn.MSELoss()(pred[:, 1:, :], eval_data[:, 2:, :])
-    # loss = torch.sum((pred[:, 1:, :]- eval_data[:, 2:, :]) ** 2)
-    return loss
+    model.eval()
+    loss = 0
+    for batch in eval_data:
+        pred = model(batch)
+        loss += nn.MSELoss()(pred[:, -2, :], batch[0][:, -1, :])
+    
+    return loss/len(eval_data)

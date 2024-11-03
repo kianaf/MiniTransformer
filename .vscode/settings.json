@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.Rmd": "rmd",
+        "*.jl": "julia",
+        "vector": "cpp"
+    }
+}
