@@ -1,61 +1,62 @@
 import torch
 from itertools import repeat
 import multiprocessing as mp
+from torch import nn
+import math
+
+# def permute_meansq_sampled_gpu(tsq, num_samples, device='mps'):
+#     """
+#     Estimates the squared mean of sums over a random subset of combinations using PyTorch with GPU acceleration.
+
+#     Parameters:
+#     tsq (torch.Tensor): 2D tensor of shape (ncont, ntar) containing input data.
+#     num_samples (int): Number of random combinations to sample.
+#     device (str): Device to perform computation on ('cuda' for GPU or 'cpu').
+
+#     Returns:
+#     torch.Tensor: 1D tensor containing the computed results for sampled combinations on the specified device.
+#     """
+#     # Move tsq to the specified device
+#     tsq = tsq.to(device)
+#     ncont, ntar = tsq.shape
+
+#     # Randomly select contributors for each sample and target
+#     indices = torch.randint(0, ncont, (num_samples, ntar), device=device)
 
 
-def permute_meansq_sampled_gpu(tsq, num_samples, device='mps'):
-    """
-    Estimates the squared mean of sums over a random subset of combinations using PyTorch with GPU acceleration.
+#     # Generate target indices
+#     target_indices = torch.arange(ntar, device=device).unsqueeze(0)
 
-    Parameters:
-    tsq (torch.Tensor): 2D tensor of shape (ncont, ntar) containing input data.
-    num_samples (int): Number of random combinations to sample.
-    device (str): Device to perform computation on ('cuda' for GPU or 'cpu').
+#     # Select the values corresponding to each sampled combination
+#     selected_values = tsq[indices, target_indices]
 
-    Returns:
-    torch.Tensor: 1D tensor containing the computed results for sampled combinations on the specified device.
-    """
-    # Move tsq to the specified device
-    tsq = tsq.to(device)
-    ncont, ntar = tsq.shape
+#     # Compute the sum of selected values for each sample
+#     sums = selected_values.sum(dim=1)
 
-    # Randomly select contributors for each sample and target
-    indices = torch.randint(0, ncont, (num_samples, ntar), device=device)
+#     # Compute the squared mean for each sample
+#     collection = (sums ** 2) / (ntar ** 2)
 
-
-    # Generate target indices
-    target_indices = torch.arange(ntar, device=device).unsqueeze(0)
-
-    # Select the values corresponding to each sampled combination
-    selected_values = tsq[indices, target_indices]
-
-    # Compute the sum of selected values for each sample
-    sums = selected_values.sum(dim=1)
-
-    # Compute the squared mean for each sample
-    collection = (sums ** 2) / (ntar ** 2)
-
-    return collection
+#     return collection
 
 
 
-def permute_meansq_sampled_gpu_batch(tsq, num_samples, batch_size, device='mps'):
-    tsq = tsq.to(device)
-    ncont, ntar = tsq.shape
-    total_batches = (num_samples + batch_size - 1) // batch_size
-    results = []
+# def permute_meansq_sampled_gpu_batch(tsq, num_samples, batch_size, device='mps'):
+#     tsq = tsq.to(device)
+#     ncont, ntar = tsq.shape
+#     total_batches = (num_samples + batch_size - 1) // batch_size
+#     results = []
 
-    for batch_idx in range(total_batches):
-        current_batch_size = min(batch_size, num_samples - batch_idx * batch_size)
-        indices = torch.randint(0, ncont, (current_batch_size, ntar), device=device)
-        target_indices = torch.arange(ntar, device=device).unsqueeze(0)
-        selected_values = tsq[indices, target_indices]
-        sums = selected_values.sum(dim=1)
-        collection = (sums ** 2) / (ntar ** 2)
-        results.append(collection)
+#     for batch_idx in range(total_batches):
+#         current_batch_size = min(batch_size, num_samples - batch_idx * batch_size)
+#         indices = torch.randint(0, ncont, (current_batch_size, ntar), device=device)
+#         target_indices = torch.arange(ntar, device=device).unsqueeze(0)
+#         selected_values = tsq[indices, target_indices]
+#         sums = selected_values.sum(dim=1)
+#         collection = (sums ** 2) / (ntar ** 2)
+#         results.append(collection)
 
-    # Concatenate all batches
-    return torch.cat(results)
+#     # Concatenate all batches
+#     return torch.cat(results)
 
 
 def statistical_testing(model, p, predindex, nrepp, target_sample_size):
@@ -74,7 +75,7 @@ def statistical_testing(model, p, predindex, nrepp, target_sample_size):
         print(f"Repetition {_ + 1}/{nrepp}")
 
         # Randomly select indices
-        selected_indexes = torch.randperm(len(targetall))[:target_sample_size]
+        selected_indexes = torch.randint(0, len(targetall), (target_sample_size,), dtype=torch.int32)
         target_selected_indexes = targetall[selected_indexes]
         # target = torch.cat((target, target_selected_indexes), dim=0)
         target = target_selected_indexes#torch.cat((target, target_selected_indexes), dim=0)
@@ -112,7 +113,7 @@ def all_comb(p):
     # Unsqueeze and repeat to match binary length p
     combinations = (binary_range.unsqueeze(1).bitwise_and(2 ** torch.arange(p - 1, -1, -1)) > 0).float()
     
-    return combinations
+    return combinations[torch.randperm(combinations.shape[0])]  # Shuffle the combinations
 
 
 def calc_pval(meansq, collection):
@@ -155,11 +156,17 @@ def permute_meansq(tsq, device='mps'):
     tsq_flat = tsq.flatten()
 
     # Select the values corresponding to each combination
-    selected_values = tsq_flat[combinations * ntar +  torch.arange(ntar,  device=device).unsqueeze(0).expand(combinations.size(0), -1)
-]
+    # selected_values = tsq_flat[combinations * ntar +  torch.arange(ntar,  device=device).unsqueeze(0).expand(combinations.size(0), -1)]
+
+
+    # Use combinations to index tsq directly, preserving 2D structure
+    selected_values = torch.stack([tsq[combinations[:, i], i] for i in range(ntar)], dim=1)  # Shape: (ncomb, ntar)
+
+
 
     # Compute the squared mean for each combination
-    collection = (selected_values.sum(dim=1) ** 2) / (ntar ** 2)
+    collection = (selected_values.mean(dim=1) ** 2)
+    # collection = selected_values.mean(dim=1)
 
     return collection
 
@@ -200,6 +207,7 @@ def meansq_context(model, context, target, predindex):
     tuple of list of float: Tuple containing the squared mean of differences (meansq) and the differences (tsq).
     """
 
+    model.eval()
 
     ncont = len(context)
     ntar = len(target)
@@ -210,34 +218,68 @@ def meansq_context(model, context, target, predindex):
 
     
 
-    curqueryother, curkeyother, curvalueother = model.multiheadattn.qkv(context)
-    curquery, curkeyself, curvalueself = model.multiheadattn.qkv(target)
-    # attention_scores = curquery.matmul(curkeyself.transpose(2, 3)) / math.sqrt(d_model)
-    # head_output_self = attention_scores.matmul(curvalueself)
+    # curqueryother, curkeyother, curvalueother = model.multiheadattn.qkv(context)
+    # curquery, curkeyself, curvalueself = model.multiheadattn.qkv(target)
+    # # attention_scores = curquery.matmul(curkeyself.transpose(2, 3)) / math.sqrt(d_model)
+    # # head_output_self = attention_scores.matmul(curvalueself)
 
     
+    # for i in range(ncont):
+    #     for j in range(ntar):
+    #         curselfweight = torch.exp(curquery[j, :, :, :].matmul(curkeyself[j, :, :, :].transpose(1, 2)))
+    #         curotherweight =  torch.exp(curquery[j, :, :, :].matmul(curkeyother[i, :, :, :].transpose(1, 2)))
+
+    #         curwsum = curselfweight + curotherweight
+    #         transval = ((curselfweight.matmul(curvalueself[j, :, :, :]) + curotherweight.matmul(curvalueother[i, :, :, :]))/curwsum).unsqueeze(1).expand(-1,model.ncum,-1,-1)
+    #         pureval = curvalueself[j, :, :, :].unsqueeze(1).expand(-1, model.ncum,-1,-1)
+
+    #         # Expand weights to broadcast
+    #         weights_expanded = model.multiheadattn.cum_weights.view(model.num_heads, model.ncum, 1, 1)
+    #         weights_expanded = weights_expanded.expand_as(transval) 
+            
+    #         head_outputs_transval = (transval * weights_expanded).sum(dim=0)
+    #         head_outputs_curvalueself = (pureval * weights_expanded).sum(dim=0)
+
+    #         pred_transval = model.predict(head_outputs_transval.unsqueeze(0))
+    #         pred_curvalueself = model.predict(head_outputs_curvalueself.unsqueeze(0))
+    
+    #         curdelta = (pred_transval - pred_curvalueself)[:, :, predindex].item()
+    #         # curdelta = nn.MSELoss()(pred_transval[:, :, predindex], pred_curvalueself[:, :, predindex]).item()
+    #         tsq[i, j] = curdelta #* curdelta
+        
+    #     meansq[i] = (tsq[i, :].mean())**2
+    #     # meansq[i] = (tsq[i, :].mean())
+
     for i in range(ncont):
-        for j in range(ntar):
-            curselfweight = torch.exp(curquery[j, :, :, :].matmul(curkeyself[j, :, :, :].transpose(1, 2)))
-            curotherweight =  torch.exp(curquery[j, :, :, :].matmul(curkeyother[i, :, :, :].transpose(1, 2)))
+        curqueryother, curkeyother, curvalueother = model.multiheadattn.qkv(context[i].unsqueeze(0))
+        for j in range(ntar):       
+            curquery, curkeyself, curvalueself = model.multiheadattn.qkv(target[j].unsqueeze(0))
+            curselfweight = torch.exp(curquery.matmul(curkeyself.transpose(2, 3)) / math.sqrt(model.d_model))
+            curotherweight =  torch.exp(curquery.matmul(curkeyother.transpose(2, 3)) / math.sqrt(model.d_model))
 
             curwsum = curselfweight + curotherweight
-            transval = ((curselfweight.matmul(curvalueself[j, :, :, :]) + curotherweight.matmul(curvalueother[i, :, :, :]))/curwsum).unsqueeze(1).expand(-1,model.ncum,-1,-1)
-            pureval = curvalueself[j, :, :, :].unsqueeze(1).expand(-1, model.ncum,-1,-1)
+            transval = ((curvalueself * curselfweight/curwsum + curvalueother * curotherweight/curwsum )).unsqueeze(2).expand(-1,-1, model.ncum,-1,-1)
+            pureval = curvalueself.unsqueeze(2).expand(-1,-1, model.ncum,-1,-1)
 
             # Expand weights to broadcast
-            weights_expanded = model.multiheadattn.cum_weights.view(model.num_heads, model.ncum, 1, 1)
+            weights_expanded = model.multiheadattn.cum_weights.view(1, model.num_heads, model.ncum, 1, 1)
             weights_expanded = weights_expanded.expand_as(transval) 
             
-            head_outputs_transval = (transval * weights_expanded).sum(dim=0)
-            head_outputs_curvalueself = (pureval * weights_expanded).sum(dim=0)
+            head_outputs_transval = (transval * weights_expanded).sum(dim=1)
+            head_outputs_curvalueself = (pureval * weights_expanded).sum(dim=1)
 
-            pred_transval = model.predict(head_outputs_transval.unsqueeze(0))
-            pred_curvalueself = model.predict(head_outputs_curvalueself.unsqueeze(0))
+            pred_transval = model.predict(head_outputs_transval)
+            pred_curvalueself = model.predict(head_outputs_curvalueself)
     
+            # curdelta = torch.abs(pred_transval - pred_curvalueself)[:, :, predindex].item()
             curdelta = (pred_transval - pred_curvalueself)[:, :, predindex].item()
+            
+            # # curdelta = nn.MSELoss()(pred_transval[:, :, predindex], pred_curvalueself[:, :, predindex]).item()
+            
             tsq[i, j] = curdelta #* curdelta
+        
         meansq[i] = (tsq[i, :].mean())**2
+        # meansq[i] = (tsq[i, :].mean())
     
     return meansq, tsq
             

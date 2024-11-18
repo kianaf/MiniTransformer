@@ -741,7 +741,7 @@ int main() {
         // gets all the combinations
         all_comb(p, 0, {}, targetall);
 
-        // randomly selects 7 of them, #FIXME: why 7 is the magic number?
+        // randomly selects 7 of them, #FIXME: why 7 is the magic number? ---> hardware can  manage
         for (int i = 0; i < 7; i++) target.push_back(targetall[rand() % targetall.size()]);
 
         auto [meansq, tsq] = meansq_context(params, context, target, predindex);

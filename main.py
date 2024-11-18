@@ -18,13 +18,13 @@ from src.evaluation import calculate_bench1_loss, calculate_bench2_loss, evaluat
 from src.statistical_testing import statistical_testing, print_p_values
 import torch.autograd.profiler as profiler
 
-    # # Check if MPS is available on the current machine
-    # if torch.backends.mps.is_available():
-    #     device = torch.device("mps")
-    #     print("Using MPS backend for GPU acceleration.")
-    # else:
-    #     device = torch.device("cpu")
-    #     print("MPS not available, using CPU instead.")
+# # Check if MPS is available on the current machine
+# if torch.backends.mps.is_available():
+#     device = torch.device("mps")
+#     print("Using MPS backend for GPU acceleration.")
+# else:
+#     device = torch.device("cpu")
+#     print("MPS not available, using CPU instead.")
 
 device = torch.device("cpu")
 
@@ -40,16 +40,16 @@ if __name__ == '__main__':
 
     # Hyperparameters
 
-    n = 200                 # sample size
+    n = 200                   # sample size
     batch_size = 1          # Batch size for loading data
     p = 10                   # number of features
-    mdim_head_dimension = 8 # dimension of the head
+    mdim_head_dimension = 1 # dimension of the head
     nheads = 16             # number of heads
     ncum = 2                # number of cumulants
     maxlen = 10             # maximum length of the sequence
-    learning_rate = 1e-4
+    learning_rate = 5e-4
     lambda_l2 = 1e-3
-    EPOCHS = 500
+    EPOCHS = 150
     mask = create_custom_mask(maxlen, device)
     distance_to_end_matrix = create_distance_to_end_matrix(maxlen, device)
     pairwise_distance_matrix = create_pairwise_distance_matrix(maxlen, device)
@@ -73,7 +73,7 @@ if __name__ == '__main__':
     # Define optimizer
     # optimizer = optim.Adam(model.parameters(), lr= learning_rate, weight_decay=lambda_l2)
     optimizer = optim.Adam(model.parameters(), lr= learning_rate, weight_decay=lambda_l2)
-    
+    # optimizer = optim.Adam(model.parameters(), lr= learning_rate)
     
     transformerFunctions.train_mini_transformer(model, dataloader, optimizer, lambda_l2, EPOCHS, device)
 
@@ -118,6 +118,15 @@ if __name__ == '__main__':
     # print_parameters(model)
 
 
+    # # Set the specific values for each row in the second dimension
+    # tensor[0, 0, :3] = torch.tensor([0, 1, 0])  # First row with specified values
+    # tensor[0, 1, :3] = torch.tensor([1, 0, 0])  # Second row with specified values
+
+    # print(model((tensor, torch.ones(1, 2, 10)))[0, 1, 2])
+
+    # Initialize a tensor of shape 1 x 2 x 10 with zeros
+    # tensor = torch.zeros(1, 2, 10)
+
     target_sample_size = 7
     nrepp = 10
     predindex = 2
@@ -127,3 +136,9 @@ if __name__ == '__main__':
     print_p_values(avepval)
 
 
+
+
+
+
+# 10 variables
+# startvector = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0]

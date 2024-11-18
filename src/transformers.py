@@ -22,7 +22,7 @@ def create_custom_mask(seq_len, device):
         for j in range(i + 2, seq_len):
             matrix[i, j] = 1
     
-    return matrix
+    return matrix * -1e9
 
 
 
@@ -146,7 +146,7 @@ class MultiHeadAttention(nn.Module):
 
         batch_size, seq_len, _ = x.size()
         
-        mask = self.mask[:seq_len, :seq_len]
+        mask = self.mask[:seq_len, :seq_len] 
 
         attention_scores, V = self.get_attention(x, self.exponential_decay(self.pairwise_distance_matrix[:seq_len, :seq_len], self.distance_between_two_positions_weight[0,0]).expand(batch_size, self.num_heads, seq_len, seq_len), mask.expand(batch_size, self.num_heads, seq_len, seq_len))
         
@@ -167,7 +167,7 @@ class MultiHeadAttention(nn.Module):
 def l2_penalty_params_except_bias(model, lambda_l2):
     # Get only the weight parameters (exclude biases)
     penalty = lambda_l2 * torch.sum(torch.tensor([torch.sum(torch.pow(param, 2))  for name, param in model.named_parameters() if "bias" not in name]))
-    print("Penalty: ", penalty)
+    # print("Penalty: ", penalty)
 
     return penalty
 
@@ -175,8 +175,12 @@ def l2_penalty_params_except_bias(model, lambda_l2):
 def mini_transformer_loss(output, target, padded_masks):    
 
     # running_loss = nn.MSELoss()(output[:, :-1, :], target[:, 1:, :])  
-    running_loss = torch.sum((output[:, :-1, :]- (target[:, 1:, :])) **2) / output.shape[0]  
-    # running_loss = torch.sum((output[:, :-1, :]- (target[:, 1:, :] * padded_masks[:, 1:, :])) **2) / output.shape[0]  
+    # running_loss = torch.sum((output[:, :-1, :]- (target[:, 1:, :])) **2) / output.shape[0]
+    
+    running_loss = torch.sum((output[:, :-1, :] - (target[:, 2:, :])) **2) / output.shape[0]
+    # running_loss = nn.MSELoss()(output, target[:, 1:, :]) 
+    
+    # # running_loss = torch.sum((output[:, :-1, :]- (target[:, 1:, :] * padded_masks[:, 1:, :])) **2) / output.shape[0]  
     
     return running_loss
  
@@ -201,8 +205,8 @@ class MiniTransformer(nn.Module):
 
         
     def forward(self, data):
-        x = data[0]#[:, :-1, :]
-        padded_masks = data[1]#[:, :-1, :]
+        x = data[0][:, :-1, :]
+        padded_masks = data[1][:, :-1, :]
         out = self.multiheadattn(x)  # The last row is the label
 
         pred = self.predict(out) * padded_masks

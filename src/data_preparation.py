@@ -21,8 +21,19 @@ class SimulatedDataset(Dataset):
 
         # Generate data directly on the desired device
         self.data = self.generate_data()
+   
+    def torch_cpp_rand(self):
+        # Define RAND_MAX based on typical C++ value (e.g., 32767)
+        RAND_MAX = 32767
+        # Generate an integer in the range [0, RAND_MAX]
+        random_int = torch.randint(0, RAND_MAX + 1, (1,), dtype=torch.int32).item()
+        # Normalize by RAND_MAX to get a float in the range [0, 1]
+        return random_int / RAND_MAX
 
     def generate_data(self):
+
+
+        
         input_data = []
 
         # Generate all data points
@@ -35,13 +46,16 @@ class SimulatedDataset(Dataset):
 
             # Generate the sequences for each sample (no pre-allocation)
             for j in range(self.maxlen):
-                curran = torch.rand(self.p, device=self.device)  # Generate random values for the sequence, vectorized
+                # curran = torch.rand(self.p, device=self.device)  # Generate random values for the sequence, vectorized
 
                 row = torch.zeros(self.p, dtype=torch.float32, device=self.device)  # Initialize the current row
 
                 # Apply the conditions based on the pos1, pos2, pos3
                 for k in range(self.p):
-                    if (k != self.pos3 and curran[k] > 0.3) or (k == self.pos3 and seenfirst and seensecond and curran[k] > 0.1):
+                    # curran = torch.rand(1).item()
+                    curran = self.torch_cpp_rand()
+
+                    if (k != self.pos3 and curran > 0.3) or (k == self.pos3 and seenfirst and seensecond and curran > 0.1):
                         row[k] = 1.0
                         if k == self.pos3:
                             justseenfirst = False
@@ -61,7 +75,7 @@ class SimulatedDataset(Dataset):
                 seensecond = justseensecond
 
                 # Stop the sequence generation randomly after j > 1 (for variable sequence lengths)
-                if j > 1 and torch.rand(1).item() > 0.8:
+                if j > 1 and self.torch_cpp_rand() > 0.8:
                     break
 
             # Convert cur_matrix (which is a list of tensors) into a tensor and append to input_data
