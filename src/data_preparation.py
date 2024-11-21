@@ -5,6 +5,7 @@ import torch
 from torch.utils.data import Dataset
 import random
 from torch.nn.utils.rnn import pad_sequence, pad_packed_sequence
+import pandas as pd
 
 
 class SimulatedDataset(Dataset):
@@ -106,3 +107,36 @@ def collate_function(batch):
     padded_sequences = torch.where(mask, padded_sequences, torch.tensor(0, dtype=padded_sequences.dtype))
 
     return padded_sequences, mask
+
+
+def load_real_data(data_str):
+
+    maxlen = 0 
+    # Step 1: Load the CSV file into a DataFrame
+    file_path = "/Users/farhadyar/Nextcloud/lora_data_share_freiburg/preprocessed/20241120_lora_complete_" + data_str + ".csv"  # Replace with your file path
+    df = pd.read_csv(file_path)
+
+    # Step 2: Sort by 'id' and 't' to ensure correct order
+    df = df.sort_values(by=['id', 't'])
+
+    # Step 4: Group by 'id' and create 2D tensors
+    tensors = []
+    for id_value, group in df.groupby('id'):
+        # Drop 'id' and 't' columns from the group
+        group = group.drop(columns=['id', 't'])
+        # Convert the remaining columns into a 2D PyTorch tensor
+        tensor = torch.tensor(group.values, dtype=torch.float32)
+        if tensor.shape[0] > 1:
+            tensors.append(tensor)
+        else:
+            print(f"Skipping ID {id_value} with only one row.")
+
+        if tensor.shape[0] > maxlen:
+            maxlen = tensor.shape[0]
+
+    # # Step 5: Display the list of tensors
+    # for i, tensor in enumerate(tensors):
+    #     print(f"Tensor {i+1} for ID {group.index[0]}:")
+    #     print(tensor)
+
+    return tensors, maxlen

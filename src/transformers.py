@@ -144,6 +144,8 @@ class MultiHeadAttention(nn.Module):
     
     def forward(self, x):
 
+        # print("X shape ", x.shape)
+
         batch_size, seq_len, _ = x.size()
         
         mask = self.mask[:seq_len, :seq_len] 

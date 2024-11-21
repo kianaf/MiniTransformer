@@ -107,8 +107,14 @@ def evaluate_mini_transformer(eval_data, model):
     """
     model.eval()
     loss = 0
+    size = len(eval_data)
     for batch in eval_data:
-        pred = model(batch)
-        loss += nn.MSELoss()(pred[:, :-1, :], batch[0][:, 2:, :])
+        if batch[0].shape[1] < 3:
+            size -= 1
+            continue
+        else:
+            pred = model(batch)
+            loss += nn.MSELoss()(pred[:, :-1, :], batch[0][:, 2:, :])
+
     
     return loss/len(eval_data)

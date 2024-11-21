@@ -8,7 +8,7 @@ import torch.optim as optim
 from torchsummary import summary
 
 
-from src.data_preparation import SimulatedDataset, collate_function
+from src.data_preparation import SimulatedDataset, collate_function, load_real_data
 from src.transformers import MiniTransformer
 import src.transformers as transformerFunctions
 from src.transformers import init_weights_recursive
@@ -39,7 +39,7 @@ device = torch.device("cpu")
 if __name__ == '__main__':
 
     # Hyperparameters
-
+    data_str = "ghq_b_sum"
     n = 200                   # sample size
     batch_size = 1          # Batch size for loading data
     p = 10                   # number of features
@@ -49,14 +49,26 @@ if __name__ == '__main__':
     maxlen = 10             # maximum length of the sequence
     learning_rate = 5e-4
     lambda_l2 = 1e-3
-    EPOCHS = 150
+    EPOCHS = 100
+
+     # Create Dataset and DataLoader
+    train_dataset = SimulatedDataset(n, p, maxlen=maxlen, device = device)
+    eval_dataset = SimulatedDataset(1000, p, maxlen=4, device = device)
+   
+    # load real data
+    n = 650
+    data, maxlen = load_real_data(data_str)
+    train_dataset = data[:n]
+    eval_dataset = data[n:]
+    
+
     mask = create_custom_mask(maxlen, device)
     distance_to_end_matrix = create_distance_to_end_matrix(maxlen, device)
     pairwise_distance_matrix = create_pairwise_distance_matrix(maxlen, device)
 
-    # Create Dataset and DataLoader
-    train_dataset = SimulatedDataset(n, p, maxlen=maxlen, device = device)
-    
+   
+
+
     
 
     dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_function,  num_workers=0)
@@ -103,15 +115,20 @@ if __name__ == '__main__':
     importlib.reload(transformerFunctions)
     print(transformerFunctions.count_parameters(model))
 
-    eval_dataset = SimulatedDataset(1000, p, maxlen=4, device = device)
+    
     eval_dataloader = DataLoader(eval_dataset, batch_size=1, shuffle=True, collate_fn=collate_function, num_workers=0)
 
-    dimave, bench1loss = calculate_bench1_loss(train_dataset.data, eval_dataset.data)
-    bench2loss = calculate_bench2_loss(train_dataset.data, eval_dataloader.dataset, dimave)
-    model_loss = evaluate_mini_transformer(eval_dataloader, model)
+    # dimave, bench1loss = calculate_bench1_loss(train_dataset.data, eval_dataset.data)
+    # bench2loss = calculate_bench2_loss(train_dataset.data, eval_dataloader.dataset, dimave)
+    # model_loss = evaluate_mini_transformer(eval_dataloader, model)
+    # print("bench1loss ", bench1loss)
+    # print("bench2loss", bench2loss)
+    # print("model_loss", model_loss.item()) 
 
+    dimave, bench1loss = calculate_bench1_loss(train_dataset, eval_dataset)
+    # bench2loss = calculate_bench2_loss(train_dataset.data, eval_dataloader.dataset, dimave)
+    model_loss = evaluate_mini_transformer(eval_dataloader, model)
     print("bench1loss ", bench1loss)
-    print("bench2loss", bench2loss)
     print("model_loss", model_loss.item()) 
 
 
