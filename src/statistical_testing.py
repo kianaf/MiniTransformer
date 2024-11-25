@@ -3,60 +3,25 @@ from itertools import repeat
 import multiprocessing as mp
 from torch import nn
 import math
-
-# def permute_meansq_sampled_gpu(tsq, num_samples, device='mps'):
-#     """
-#     Estimates the squared mean of sums over a random subset of combinations using PyTorch with GPU acceleration.
-
-#     Parameters:
-#     tsq (torch.Tensor): 2D tensor of shape (ncont, ntar) containing input data.
-#     num_samples (int): Number of random combinations to sample.
-#     device (str): Device to perform computation on ('cuda' for GPU or 'cpu').
-
-#     Returns:
-#     torch.Tensor: 1D tensor containing the computed results for sampled combinations on the specified device.
-#     """
-#     # Move tsq to the specified device
-#     tsq = tsq.to(device)
-#     ncont, ntar = tsq.shape
-
-#     # Randomly select contributors for each sample and target
-#     indices = torch.randint(0, ncont, (num_samples, ntar), device=device)
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
-#     # Generate target indices
-#     target_indices = torch.arange(ntar, device=device).unsqueeze(0)
+def get_context_predindex_pair_effect(model, p, context, targetall, nrepp):
 
-#     # Select the values corresponding to each sampled combination
-#     selected_values = tsq[indices, target_indices]
+    context_predindex_pair_effect = torch.zeros((p, p))  # Initialize a 2D array with zeros
 
-#     # Compute the sum of selected values for each sample
-#     sums = selected_values.sum(dim=1)
+    for rep in range(nrepp):
+        print(f"Repetition {rep + 1}/{nrepp}")
+        for i in range(p):
+            meansq, tsq = meansq_context(model, context, targetall, i)  # Call the function
+            context_predindex_pair_effect[i, :] += meansq  # Accumulate the results
 
-#     # Compute the squared mean for each sample
-#     collection = (sums ** 2) / (ntar ** 2)
+    context_predindex_pair_effect /= nrepp  # Average the results
 
-#     return collection
-
+    return context_predindex_pair_effect
 
 
-# def permute_meansq_sampled_gpu_batch(tsq, num_samples, batch_size, device='mps'):
-#     tsq = tsq.to(device)
-#     ncont, ntar = tsq.shape
-#     total_batches = (num_samples + batch_size - 1) // batch_size
-#     results = []
-
-#     for batch_idx in range(total_batches):
-#         current_batch_size = min(batch_size, num_samples - batch_idx * batch_size)
-#         indices = torch.randint(0, ncont, (current_batch_size, ntar), device=device)
-#         target_indices = torch.arange(ntar, device=device).unsqueeze(0)
-#         selected_values = tsq[indices, target_indices]
-#         sums = selected_values.sum(dim=1)
-#         collection = (sums ** 2) / (ntar ** 2)
-#         results.append(collection)
-
-#     # Concatenate all batches
-#     return torch.cat(results)
 
 
 def statistical_testing(model, p, predindex, nrepp, target_sample_size):
@@ -100,7 +65,7 @@ def statistical_testing(model, p, predindex, nrepp, target_sample_size):
     # Average the p-values over the number of repetitions
     avepval /= nrepp
 
-    return avepval
+    return avepval, context, targetall
 
    
 
@@ -170,28 +135,7 @@ def permute_meansq(tsq, device='mps'):
 
     return collection
 
-# def permute_meansq(tsq, curpos, curcum, collection):
-#     """
-#     Recursively computes the squared mean of sums over all possible combinations
-#     where, at each position (target), it selects one element from each column of tsq.
 
-#     Parameters:
-#     tsq (numpy.ndarray): 2D array of shape (ncont, ntar)
-#     curpos (int): Current position in the recursion (starting from 0)
-#     curcum (float): Current cumulative sum (starting from 0.0)
-#     collection (list): List to collect the computed results
-#     """
-#     ncont, ntar = tsq.shape
-#     for i in range(ncont):
-
-#         curval = curcum + tsq[i, curpos]
-#         if curpos == ntar - 1:
-#             result = (curval ** 2) / (ntar ** 2)
-#             collection.append(result)
-#         else:
-#             permute_meansq(tsq, curpos + 1, curval, collection)
-
-#     return collection
 
 def meansq_context(model, context, target, predindex):
     """
@@ -216,39 +160,6 @@ def meansq_context(model, context, target, predindex):
     meansq = torch.zeros(ncont)
     tsq = torch.zeros(ncont , ntar)
 
-    
-
-    # curqueryother, curkeyother, curvalueother = model.multiheadattn.qkv(context)
-    # curquery, curkeyself, curvalueself = model.multiheadattn.qkv(target)
-    # # attention_scores = curquery.matmul(curkeyself.transpose(2, 3)) / math.sqrt(d_model)
-    # # head_output_self = attention_scores.matmul(curvalueself)
-
-    
-    # for i in range(ncont):
-    #     for j in range(ntar):
-    #         curselfweight = torch.exp(curquery[j, :, :, :].matmul(curkeyself[j, :, :, :].transpose(1, 2)))
-    #         curotherweight =  torch.exp(curquery[j, :, :, :].matmul(curkeyother[i, :, :, :].transpose(1, 2)))
-
-    #         curwsum = curselfweight + curotherweight
-    #         transval = ((curselfweight.matmul(curvalueself[j, :, :, :]) + curotherweight.matmul(curvalueother[i, :, :, :]))/curwsum).unsqueeze(1).expand(-1,model.ncum,-1,-1)
-    #         pureval = curvalueself[j, :, :, :].unsqueeze(1).expand(-1, model.ncum,-1,-1)
-
-    #         # Expand weights to broadcast
-    #         weights_expanded = model.multiheadattn.cum_weights.view(model.num_heads, model.ncum, 1, 1)
-    #         weights_expanded = weights_expanded.expand_as(transval) 
-            
-    #         head_outputs_transval = (transval * weights_expanded).sum(dim=0)
-    #         head_outputs_curvalueself = (pureval * weights_expanded).sum(dim=0)
-
-    #         pred_transval = model.predict(head_outputs_transval.unsqueeze(0))
-    #         pred_curvalueself = model.predict(head_outputs_curvalueself.unsqueeze(0))
-    
-    #         curdelta = (pred_transval - pred_curvalueself)[:, :, predindex].item()
-    #         # curdelta = nn.MSELoss()(pred_transval[:, :, predindex], pred_curvalueself[:, :, predindex]).item()
-    #         tsq[i, j] = curdelta #* curdelta
-        
-    #     meansq[i] = (tsq[i, :].mean())**2
-    #     # meansq[i] = (tsq[i, :].mean())
 
     for i in range(ncont):
         curqueryother, curkeyother, curvalueother = model.multiheadattn.qkv(context[i].unsqueeze(0))
@@ -298,3 +209,59 @@ def print_p_values(avepval):
     """
     for i, pval in enumerate(avepval):
         print(f"Variable {i+1}: {pval:.6f}")
+
+
+def plot_context_predindex_pair_effect(context_predindex_pair_effect, data_str, run_path):
+    """
+    Plot the heatmap for context-predindex pair effect.
+
+    Parameters:
+    context_predindex_pair_effect (torch.Tensor): Context-predindex pair effect to plot.
+    """
+
+    if data_str == "ghq_b_sum":
+        variable_names = [
+            "dh_10: Nightmares",
+            "dh_35: Sleep problems",
+            "dh_37: Paperwork",
+            "dh_38: Housekeeping",
+            "dh_45: Noise",
+            "dh_53: Long work hours",
+            "le_8: Financial problems",
+            "le_17: Arguments with partner",
+            "le_22: Serious illness",
+            "ghq_b_sum: Anxiety & sleep issues"
+        ]
+    else: 
+        if data_str == "ghq_sum":
+            variable_names = [
+                "dh_11: Commute to work/school",
+                "dh_31: Unwanted visit",
+                "dh_37: Paperwork",
+                "dh_38: Housekeeping",
+                "dh_42: Bad weather",
+                "dh_46: Traffic",
+                "le_1: Lost job",
+                "le_16: Breakup",
+                "le_17: Arguments with partner",
+                "ghq_sum: Psychological distress"
+            ]
+        else:
+            variable_names = [f"Feature {i+1}" for i in range(context_predindex_pair_effect.shape[0])]
+
+    # Plot the context-predindex pair effect
+
+    plt.figure(figsize=(8, 8))
+    im = plt.imshow(context_predindex_pair_effect, cmap='hot', interpolation='nearest')
+    plt.colorbar(im)
+    plt.xlabel('Context')
+    plt.ylabel('Predindex')
+    plt.title('Context-Predindex Pair Effect')
+
+    # Rotate the x-axis labels by 90 degrees
+    plt.xticks(ticks=range(len(variable_names)), labels=variable_names, rotation=90)
+    plt.yticks(ticks=range(len(variable_names)), labels=variable_names)
+
+    # save the plot
+    plt.savefig(run_path + "/context_predindex_pair_effect.png", dpi=300, bbox_inches="tight")
+    plt.show()

@@ -175,15 +175,13 @@ def l2_penalty_params_except_bias(model, lambda_l2):
 
 
 def mini_transformer_loss(output, target, padded_masks):    
+    
+    running_loss = torch.sum(((output[:, :-1, :] - (target[:, 2:, :])) * padded_masks[:, 2:, :]) **2) / output.shape[0]
+    # running_loss = torch.sum(((output[:, :-1, :] - (target[:, 2:, :]))) **2) / output.shape[0]
+    
+    
+    # running_loss = nn.MSELoss()(output[:, :-1, :],(target[:, 2:, :]))
 
-    # running_loss = nn.MSELoss()(output[:, :-1, :], target[:, 1:, :])  
-    # running_loss = torch.sum((output[:, :-1, :]- (target[:, 1:, :])) **2) / output.shape[0]
-    
-    running_loss = torch.sum((output[:, :-1, :] - (target[:, 2:, :])) **2) / output.shape[0]
-    # running_loss = nn.MSELoss()(output, target[:, 1:, :]) 
-    
-    # # running_loss = torch.sum((output[:, :-1, :]- (target[:, 1:, :] * padded_masks[:, 1:, :])) **2) / output.shape[0]  
-    
     return running_loss
  
 
@@ -254,6 +252,7 @@ def train_mini_transformer_one_epoch(model, train_loader, optimizer, lambda_l2, 
 def train_mini_transformer(model, train_loader, optimizer, lambda_l2, EPOCHS, device):
     # Initializing in a separate cell so we can easily add more epochs to the same run
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    run_path = 'runs/trainer_{}'.format(timestamp)
     tb_writer = SummaryWriter('runs/trainer_{}'.format(timestamp))
     # epoch_number = 0
 
@@ -293,6 +292,7 @@ def train_mini_transformer(model, train_loader, optimizer, lambda_l2, EPOCHS, de
 
         # # Log average loss for the epoch
         # tb_writer.add_scalar('avg_loss', avg_loss, epoch_number)
+    return run_path
 
         
         
