@@ -169,11 +169,11 @@ def meansq_context(model, context, target, predindex):
             curotherweight =  torch.exp(curquery.matmul(curkeyother.transpose(2, 3)) / math.sqrt(model.d_model))
 
             curwsum = curselfweight + curotherweight
-            transval = ((curvalueself * curselfweight/curwsum + curvalueother * curotherweight/curwsum )).unsqueeze(2).expand(-1,-1, model.ncum,-1,-1)
-            pureval = curvalueself.unsqueeze(2).expand(-1,-1, model.ncum,-1,-1)
+            transval = ((curvalueself * curselfweight/curwsum + curvalueother * curotherweight/curwsum )).sum(dim = -1).unsqueeze(2).expand(-1,-1, model.ncum,-1)
+            pureval = (curvalueself.sum(dim = -1)).unsqueeze(2).expand(-1,-1, model.ncum,-1)
 
             # Expand weights to broadcast
-            weights_expanded = model.multiheadattn.cum_weights.view(1, model.num_heads, model.ncum, 1, 1)
+            weights_expanded = model.multiheadattn.cum_weights.view(1, model.num_heads, model.ncum, 1)
             weights_expanded = weights_expanded.expand_as(transval) 
             
             head_outputs_transval = (transval * weights_expanded).sum(dim=1)

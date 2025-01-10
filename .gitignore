@@ -4,3 +4,4 @@ mini_transformer_venv
 devcontainer.json
 env
 runs
+.vscode

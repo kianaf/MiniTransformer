@@ -31,10 +31,10 @@ def create_distance_to_end_matrix(seq_len, device):
     
     # Fill the diagonal after the main diagonal with zeros
     for i in range(seq_len - 1):
-        for j in range(seq_len-1):
-            matrix[i, j] = i + 1 - j
+        for j in range(i+2):
+            matrix[i, j] = i + 2 - j
     
-    return torch.relu(matrix)
+    return matrix
 
 
 def create_pairwise_distance_matrix(seq_len, device):
@@ -47,16 +47,16 @@ def create_pairwise_distance_matrix(seq_len, device):
     return dist_matrix
 
 #FIXME: first difference is that all the embedding size is being used for all the heads
-
-def init_weights_recursive(module, param_low=-0.1, param_high=0.1):
+def init_weights_recursive(module):
     # Apply to all parameters in the module
     for param in module.parameters():
-        # Initialize using normal distribution (mean=param_low, std=param_high)
-        nn.init.uniform_(param, a=param_low, b=param_high)
+        with torch.no_grad():
+            # Initialize using the same logic as the C++ code
+            param.copy_(torch.rand(param.size()) * 0.2 - 0.1)
     
     # Recursively apply to all sub-modules
     for child in module.children():
-        init_weights_recursive(child, param_low, param_high)
+        init_weights_recursive(child)
 
 
 class MultiHeadAttention(nn.Module):
@@ -76,12 +76,12 @@ class MultiHeadAttention(nn.Module):
 
         # This is the weight that is used to change the slope of the effect of the distance to the end
         self.distance_to_end_weight = nn.Parameter(torch.randn(1, 1))
-        nn.init.normal_(self.distance_to_end_weight, mean=0, std=0.03)
+        # nn.init.normal_(self.distance_to_end_weight, mean=0, std=0.03)
 
 
         # This is the weight that is used to change the slope of the effect of the distance between two positions
         self.distance_between_two_positions_weight = nn.Parameter(torch.randn(1, 1))
-        nn.init.normal_(self.distance_between_two_positions_weight, mean=0, std=0.03)
+        # nn.init.normal_(self.distance_between_two_positions_weight, mean=0, std=0.03)
         
         # Create linear layers for all heads then we can split if we want
         self.W_b_q = nn.Linear(d_model, self.num_heads * self.mdim_head_dimension)
@@ -91,12 +91,13 @@ class MultiHeadAttention(nn.Module):
         self.W_b_v = nn.Linear(d_model, self.num_heads * self.mdim_head_dimension)
         # nn.init.normal_(self.W_b_v.weight, mean=0, std=0.03)
         
-        self.act_function = nn.ReLU()
+        # self.act_function = nn.ReLU()
+        self.act_function = nn.Identity()
 
     
     def exponential_decay(self, dist, weight):
-
-        return torch.exp(-dist * (torch.exp(weight)**5))
+        return torch.exp((-dist * torch.exp(weight))**5)
+        # return torch.exp(-dist * (torch.exp(weight)**5))
 
 
 
@@ -135,7 +136,7 @@ class MultiHeadAttention(nn.Module):
 
         Q, K, V = self.qkv(x)
         
-        scores = Q.matmul(K.transpose(2, 3)) / math.sqrt(self.d_model)
+        scores = Q.matmul(K.transpose(2, 3)) / math.sqrt(self.mdim_head_dimension)
 
         attention_scores = torch.nn.functional.softmax(scores + dist_weight + mask , dim=-1)
         
@@ -152,19 +153,17 @@ class MultiHeadAttention(nn.Module):
 
         attention_scores, V = self.get_attention(x, self.exponential_decay(self.pairwise_distance_matrix[:seq_len, :seq_len], self.distance_between_two_positions_weight[0,0]).expand(batch_size, self.num_heads, seq_len, seq_len), mask.expand(batch_size, self.num_heads, seq_len, seq_len))
         
-        head_output = attention_scores.matmul(V)
-        
-        head_output = (head_output * self.exponential_decay(self.distance_between_two_positions_weight[:seq_len, :seq_len], self.distance_to_end_weight[0,0]).view(1, 1, -1, 1)).expand_as(head_output).unsqueeze(2).expand(-1,-1,self.ncum,-1,-1)
-
+        head_output = ((attention_scores * self.exponential_decay(self.distance_to_end_matrix[:seq_len, :seq_len], self.distance_to_end_weight[0,0])).matmul(V)).sum(dim=-1) 
+        head_output = head_output.unsqueeze(2).expand(-1,-1,self.ncum,-1)
 
         # Expand weights to broadcast
-        weights_expanded = self.cum_weights.view(-1, self.num_heads, self.ncum, 1, 1)
+        weights_expanded = self.cum_weights.view(-1, self.num_heads, self.ncum, 1)
         weights_expanded = weights_expanded.expand_as(head_output) 
          
         head_outputs_cum = (head_output * weights_expanded).sum(dim=1)
 
         return head_outputs_cum
-
+ 
 
 def l2_penalty_params_except_bias(model, lambda_l2):
     # Get only the weight parameters (exclude biases)
@@ -177,10 +176,6 @@ def l2_penalty_params_except_bias(model, lambda_l2):
 def mini_transformer_loss(output, target, padded_masks):    
     
     running_loss = torch.sum(((output[:, :-1, :] - (target[:, 2:, :])) * padded_masks[:, 2:, :]) **2) / output.shape[0]
-    # running_loss = torch.sum(((output[:, :-1, :] - (target[:, 2:, :]))) **2) / output.shape[0]
-    
-    
-    # running_loss = nn.MSELoss()(output[:, :-1, :],(target[:, 2:, :]))
 
     return running_loss
  
@@ -195,12 +190,13 @@ class MiniTransformer(nn.Module):
         self.mdim_head_dimension = mdim_head_dimension
         self.device = device
         self.multiheadattn = MultiHeadAttention(d_model, num_heads, mdim_head_dimension, ncum, mask, pairwise_distance_matrix,  distance_to_end_matrix,  self.device)
-        self.prediction_weights = nn.Parameter(torch.randn(self.ncum, self.mdim_head_dimension, self.d_model))
+        self.prediction_weights = nn.Parameter(torch.randn(self.ncum, self.d_model))
         self.prediction_biases = nn.Parameter(torch.randn(d_model))
 
     def predict(self, out):
+        batch_size = out.shape[0]
 
-        pred = out.matmul(self.prediction_weights).sum(dim = 1) + self.prediction_biases
+        pred = (out.transpose(1,2)).matmul(self.prediction_weights.unsqueeze(0).expand(batch_size,self.ncum,self.d_model)) + self.prediction_biases
         return pred
 
         
@@ -240,13 +236,11 @@ def train_mini_transformer_one_epoch(model, train_loader, optimizer, lambda_l2, 
         # tb_writer.close()
 
         
-        loss = mini_transformer_loss(output, data[0], data[1]) #+ l2_penalty_params_except_bias(model, lambda_l2)
+        loss = mini_transformer_loss(output, data[0], data[1]) + l2_penalty_params_except_bias(model, lambda_l2)
         running_loss += loss.item()
         loss.backward()
         optimizer.step()
         
-    # l2_penalty_params_except_bias(model, lambda_l2)
-
     return running_loss/len(train_loader)
 
 def train_mini_transformer(model, train_loader, optimizer, lambda_l2, EPOCHS, device):

@@ -39,19 +39,19 @@ device = torch.device("cpu")
 if __name__ == '__main__':
 
     # Hyperparameters
-    data_str = "ghq_b_sum"
+    # data_str = "ghq_b_sum"
     # data_str = "ghq_sum"
-    # data_str = "simulation"
+    data_str = "simulation"
     n = 200                   # sample size
-    batch_size = 1          # Batch size for loading data
+    batch_size = 4          # Batch size for loading data
     p = 10                   # number of features
     mdim_head_dimension = 1 # dimension of the head
     nheads = 16             # number of heads
     ncum = 2                # number of cumulants
     maxlen = 10             # maximum length of the sequence
-    learning_rate = 1e-3
-    lambda_l2 = 1e-2 
-    EPOCHS = 100
+    learning_rate = 5e-4
+    lambda_l2 = 1e-3
+    EPOCHS = 500
     target_sample_size = 7
     nrepp = 10
 
@@ -83,19 +83,18 @@ if __name__ == '__main__':
 
     dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_function,  num_workers=0)
     
-    model = MiniTransformer(p, nheads, mdim_head_dimension, ncum, mask, distance_to_end_matrix, pairwise_distance_matrix, device)
+    model = MiniTransformer(p, nheads, mdim_head_dimension, ncum, mask, pairwise_distance_matrix, distance_to_end_matrix,  device)
 
     model.apply(init_weights_recursive)
     model.to(device)
 
-    model = torch.compile(model)
+    # model = torch.compile(model)
     # Start the timer
     start_time = time.time()
 
     # Define optimizer
     # optimizer = optim.Adam(model.parameters(), lr= learning_rate, weight_decay=lambda_l2)
-    optimizer = optim.Adam(model.parameters(), lr= learning_rate, weight_decay=lambda_l2)
-    # optimizer = optim.Adam(model.parameters(), lr= learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr= learning_rate)
     
     run_path = transformerFunctions.train_mini_transformer(model, dataloader, optimizer, lambda_l2, EPOCHS, device)
 
