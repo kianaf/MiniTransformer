@@ -113,7 +113,8 @@ def load_real_data(data_str):
 
     maxlen = 0 
     # Step 1: Load the CSV file into a DataFrame
-    file_path = "/Users/farhadyar/Nextcloud/lora_data_share_freiburg/preprocessed/20241120_lora_complete_" + data_str + ".csv"  # Replace with your file path
+    # file_path = "/Users/farhadyar/Nextcloud/lora_data_share_freiburg/preprocessed/20241120_lora_complete_" + data_str + ".csv"  # Replace with your file path
+    file_path = "/Users/farhadyar/Nextcloud/lora_data_share_freiburg/preprocessed/20250113_lora_complete_" + data_str + ".csv"  # Replace with your file path
     df = pd.read_csv(file_path)
 
     # Step 2: Sort by 'id' and 't' to ensure correct order

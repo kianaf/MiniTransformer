@@ -2,6 +2,8 @@
 src/__pycache__
 mini_transformer_venv
 devcontainer.json
+data/dementia_data/data_version/*
 env
 runs
 .vscode
+

@@ -39,19 +39,19 @@ device = torch.device("cpu")
 if __name__ == '__main__':
 
     # Hyperparameters
-    # data_str = "ghq_b_sum"
+    data_str = "ghq_b_sum"
     # data_str = "ghq_sum"
-    data_str = "simulation"
+    # data_str = "simulation"
     n = 200                   # sample size
-    batch_size = 4          # Batch size for loading data
+    batch_size = 1          # Batch size for loading data
     p = 10                   # number of features
     mdim_head_dimension = 1 # dimension of the head
     nheads = 16             # number of heads
     ncum = 2                # number of cumulants
     maxlen = 10             # maximum length of the sequence
-    learning_rate = 5e-4
+    learning_rate = 1e-3
     lambda_l2 = 1e-3
-    EPOCHS = 500
+    EPOCHS = 100
     target_sample_size = 7
     nrepp = 10
 
@@ -67,8 +67,11 @@ if __name__ == '__main__':
         
     else:
         # load real data
+        
         n = 650
         data, maxlen = load_real_data(data_str)
+        print("Sample size: ", len(data))
+        
         train_dataset = data[:n]
         eval_dataset = data[n:]
         predindex = 9

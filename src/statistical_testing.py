@@ -5,7 +5,7 @@ from torch import nn
 import math
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+from matplotlib.colors import LinearSegmentedColormap
 
 def get_context_predindex_pair_effect(model, p, context, targetall, nrepp):
 
@@ -251,8 +251,17 @@ def plot_context_predindex_pair_effect(context_predindex_pair_effect, data_str, 
 
     # Plot the context-predindex pair effect
 
+
+    # red: #AE232F
+    # blue: #1D4A91
+    # Define your custom colors
+    colors = ["#1D4A91", "#FFFFFF", "#AE232F"] 
+
+    # Create the colormap
+    custom_cmap = LinearSegmentedColormap.from_list("custom_palette", colors)
+
     plt.figure(figsize=(8, 8))
-    im = plt.imshow(context_predindex_pair_effect, cmap='hot', interpolation='nearest')
+    im = plt.imshow(context_predindex_pair_effect, cmap=custom_cmap, interpolation='nearest')
     plt.colorbar(im)
     plt.xlabel('Context')
     plt.ylabel('Predindex')
