@@ -127,10 +127,10 @@ def load_real_data(data_str):
         group = group.drop(columns=['id', 't'])
         # Convert the remaining columns into a 2D PyTorch tensor
         tensor = torch.tensor(group.values, dtype=torch.float32)
-        if tensor.shape[0] > 1:
+        if tensor.shape[0] > 2:
             tensors.append(tensor)
         else:
-            print(f"Skipping ID {id_value} with only one row.")
+            print(f"Skipping ID {id_value} with only {tensor.shape[0]} time-point.")
 
         if tensor.shape[0] > maxlen:
             maxlen = tensor.shape[0]

@@ -4,6 +4,8 @@ import multiprocessing as mp
 from torch import nn
 import math
 import matplotlib.pyplot as plt
+# Update the default font
+plt.rcParams['font.family'] = 'Helvetica'
 import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap
 
@@ -24,26 +26,26 @@ def get_context_predindex_pair_effect(model, p, context, targetall, nrepp):
 
 
 
-def statistical_testing(model, p, predindex, nrepp, target_sample_size):
+def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample_size):
     # Create context and target as identity tensors of size p x p
     context = torch.eye(p)  # Identity matrix as tensor
     # target = context.clone()  # Clone to create an identical target tensor
 
     # Define avepval tensor to accumulate p-values
-    avepval = torch.zeros(p)
+    pval_mat = torch.zeros(p, nrepp)
 
     targetall = all_comb(p)
+    # targetall = get_the_existing_comb(train_dataset)
 
-    for _ in range(nrepp):
+    for repetition in range(nrepp):
 
         # print repetition number
-        print(f"Repetition {_ + 1}/{nrepp}")
+        print(f"Repetition {repetition + 1}/{nrepp}")
 
         # Randomly select indices
         selected_indexes = torch.randint(0, len(targetall), (target_sample_size,), dtype=torch.int32)
         target_selected_indexes = targetall[selected_indexes]
-        # target = torch.cat((target, target_selected_indexes), dim=0)
-        target = target_selected_indexes#torch.cat((target, target_selected_indexes), dim=0)
+        target = target_selected_indexes
 
         # Compute the squared mean of differences for the context-target pair
         meansq, tsq = meansq_context(model, context, target, predindex)
@@ -54,18 +56,21 @@ def statistical_testing(model, p, predindex, nrepp, target_sample_size):
         
         # Compute empirical p-values for each value in meansq
         pval = calc_pval(meansq, permute_meansq(tsq).to('cpu')) 
-
+        
         # collection = []
         # pval = calc_pval(meansq, torch.stack(permute_meansq(tsq, 0, 0.0, collection)))
 
 
+
         # Accumulate p-values
-        avepval += pval
+        pval_mat[:, repetition] = pval
     
     # Average the p-values over the number of repetitions
-    avepval /= nrepp
+    avepval = pval_mat.mean(dim=1)
+    
+    stdpval = pval_mat.std(dim=1)
 
-    return avepval, context, targetall
+    return avepval, stdpval, context, targetall
 
    
 
@@ -79,6 +84,13 @@ def all_comb(p):
     combinations = (binary_range.unsqueeze(1).bitwise_and(2 ** torch.arange(p - 1, -1, -1)) > 0).float()
     
     return combinations[torch.randperm(combinations.shape[0])]  # Shuffle the combinations
+
+def get_the_existing_comb(train_dataset):
+    
+    # Get unique feature vectors
+    unique_combs = torch.unique(torch.cat(train_dataset), dim=0)
+    
+    return unique_combs[torch.randperm(unique_combs.shape[0])]
 
 
 def calc_pval(meansq, collection):
@@ -136,6 +148,34 @@ def permute_meansq(tsq, device='mps'):
     return collection
 
 
+# def permute_meansq(tsq, device='mps'):
+#     """
+#     computation of the squared mean of sums over all possible combinations
+#     where, at each position (target), it selects one element from each column of tsq.
+
+#     Parameters:
+#     tsq (torch.Tensor): 2D tensor of shape (ncont, ntar)
+#     device (str): Device to perform computation on ('cpu', 'cuda', or 'mps')
+
+#     Returns:
+#     torch.Tensor: 1D tensor containing the computed results for each combination.
+#     """
+#     tsq = tsq.to(device)
+#     ncont, ntar = tsq.shape
+
+#     # Generate all possible combinations of row indices for each column
+#     indices = torch.cartesian_prod(*[torch.arange(ncont, device=device) for _ in range(ntar)])  # Shape: (ncomb, ntar)
+
+#     # Use combinations to index tsq directly, preserving 2D structure
+#     selected_values = tsq[indices, torch.arange(ntar, device=device)]  # Shape: (ncomb, ntar)
+
+#     # Compute the squared mean for each combination
+#     collection = selected_values.mean(dim=1) ** 2  # Shape: (ncomb,)
+
+#     return collection
+
+
+
 
 def meansq_context(model, context, target, predindex):
     """
@@ -165,16 +205,17 @@ def meansq_context(model, context, target, predindex):
         curqueryother, curkeyother, curvalueother = model.multiheadattn.qkv(context[i].unsqueeze(0))
         for j in range(ntar):       
             curquery, curkeyself, curvalueself = model.multiheadattn.qkv(target[j].unsqueeze(0))
-            curselfweight = torch.exp(curquery.matmul(curkeyself.transpose(2, 3)) / math.sqrt(model.d_model))
-            curotherweight =  torch.exp(curquery.matmul(curkeyother.transpose(2, 3)) / math.sqrt(model.d_model))
+            curselfweight = torch.exp(curquery.matmul(curkeyself.transpose(2, 3)) / math.sqrt(model.dk))
+            curotherweight =  torch.exp(curquery.matmul(curkeyother.transpose(2, 3)) / math.sqrt(model.dk))
 
             curwsum = curselfweight + curotherweight
-            transval = ((curvalueself * curselfweight/curwsum + curvalueother * curotherweight/curwsum )).sum(dim = -1).unsqueeze(2).expand(-1,-1, model.ncum,-1)
-            pureval = (curvalueself.sum(dim = -1)).unsqueeze(2).expand(-1,-1, model.ncum,-1)
+            transval = ((curvalueself * curselfweight/curwsum + curvalueother * curotherweight/curwsum )).sum(dim = -1).unsqueeze(2).expand(1,model.num_heads, model.ncum,-1)
+            pureval = (curvalueself.sum(dim = -1)).unsqueeze(2).expand(1,model.num_heads, model.ncum,-1)
 
             # Expand weights to broadcast
-            weights_expanded = model.multiheadattn.cum_weights.view(1, model.num_heads, model.ncum, 1)
-            weights_expanded = weights_expanded.expand_as(transval) 
+            weights_expanded = model.multiheadattn.cum_weights.unsqueeze(0).unsqueeze(3).expand(1, model.num_heads, model.ncum, 1) # 1 here we some over dv or it is one
+
+            # weights_expanded = weights_expanded.expand_as(transval) 
             
             head_outputs_transval = (transval * weights_expanded).sum(dim=1)
             head_outputs_curvalueself = (pureval * weights_expanded).sum(dim=1)
@@ -184,8 +225,6 @@ def meansq_context(model, context, target, predindex):
     
             # curdelta = torch.abs(pred_transval - pred_curvalueself)[:, :, predindex].item()
             curdelta = (pred_transval - pred_curvalueself)[:, :, predindex].item()
-            
-            # # curdelta = nn.MSELoss()(pred_transval[:, :, predindex], pred_curvalueself[:, :, predindex]).item()
             
             tsq[i, j] = curdelta #* curdelta
         
@@ -200,15 +239,17 @@ def meansq_context(model, context, target, predindex):
 #FIXME the model never has the possibility to learn what to predict as the second time point of sequence (seeing only one time point)
 
 
-def print_p_values(avepval):
+def print_p_values(avepval, stdpval):
     """
     Print the p-values in a readable format.
 
     Parameters:
     avepval (torch.Tensor): Average p-values to print.
+    
+    stdpval (torch.Tensor): Standard deviation of p-values to print.
     """
-    for i, pval in enumerate(avepval):
-        print(f"Variable {i+1}: {pval:.6f}")
+    for i in range(avepval.shape[0]):
+        print(f"Variable {i+1}: {avepval[i]:.6f} ± {stdpval[i]:.6f}")
 
 
 def plot_context_predindex_pair_effect(context_predindex_pair_effect, data_str, run_path):
@@ -263,14 +304,14 @@ def plot_context_predindex_pair_effect(context_predindex_pair_effect, data_str, 
     plt.figure(figsize=(8, 8))
     im = plt.imshow(context_predindex_pair_effect, cmap=custom_cmap, interpolation='nearest')
     plt.colorbar(im)
-    plt.xlabel('Context')
-    plt.ylabel('Predindex')
-    plt.title('Context-Predindex Pair Effect')
+    plt.xlabel(r"Context ($c_j$)")
+    plt.ylabel(r"Target ($k$)")
+    plt.title(r"Pairwise context-target effect $\overline{\Delta^2}$")
 
     # Rotate the x-axis labels by 90 degrees
     plt.xticks(ticks=range(len(variable_names)), labels=variable_names, rotation=90)
     plt.yticks(ticks=range(len(variable_names)), labels=variable_names)
 
     # save the plot
-    plt.savefig(run_path + "/context_predindex_pair_effect.png", dpi=300, bbox_inches="tight")
+    plt.savefig(run_path + f"/context_target_effect_{data_str}.png", dpi=300, bbox_inches="tight")
     plt.show()

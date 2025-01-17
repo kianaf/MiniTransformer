@@ -60,14 +60,15 @@ def init_weights_recursive(module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, num_heads, mdim_head_dimension, ncum, mask, pairwise_distance_matrix,  distance_to_end_matrix, device):
+    def __init__(self, d_model, num_heads, dk, dv, ncum, mask, pairwise_distance_matrix,  distance_to_end_matrix, device):
         super(MultiHeadAttention, self).__init__()
         
         self.device = device
         self.d_model = d_model
         self.num_heads = num_heads
         self.ncum = ncum
-        self.mdim_head_dimension = mdim_head_dimension
+        self.dk = dk
+        self.dv = dv
         self.cum_weights = nn.Parameter(torch.randn(num_heads, ncum))
         self.mask = mask
         self.pairwise_distance_matrix = pairwise_distance_matrix
@@ -84,11 +85,11 @@ class MultiHeadAttention(nn.Module):
         # nn.init.normal_(self.distance_between_two_positions_weight, mean=0, std=0.03)
         
         # Create linear layers for all heads then we can split if we want
-        self.W_b_q = nn.Linear(d_model, self.num_heads * self.mdim_head_dimension)
+        self.W_b_q = nn.Linear(d_model, self.num_heads * self.dk)
         # nn.init.normal_(self.W_b_q.weight, mean=0, std=0.03)
-        self.W_b_k = nn.Linear(d_model, self.num_heads * self.mdim_head_dimension)
+        self.W_b_k = nn.Linear(d_model, self.num_heads * self.dk)
         # nn.init.normal_(self.W_b_k.weight, mean=0, std=0.03)
-        self.W_b_v = nn.Linear(d_model, self.num_heads * self.mdim_head_dimension)
+        self.W_b_v = nn.Linear(d_model, self.num_heads * self.dv)
         # nn.init.normal_(self.W_b_v.weight, mean=0, std=0.03)
         
         # self.act_function = nn.ReLU()
@@ -105,9 +106,9 @@ class MultiHeadAttention(nn.Module):
         return self.act_function(x.matmul(projection_layer.weight.t()) + projection_layer.bias)
 
 
-    def split_heads(self, x):
+    def split_heads(self, x, dim_head):
         # Reshape the input to have num_heads for multi-head attention
-        return x.view(x.shape[0], -1, self.num_heads, self.mdim_head_dimension).transpose(1, 2)
+        return x.view(x.shape[0], -1, self.num_heads, dim_head).transpose(1, 2)
 
     def qkv(self, x):
 
@@ -116,18 +117,10 @@ class MultiHeadAttention(nn.Module):
         V = self.activation(self.W_b_v, x)
 
 
-        # Q = self.W_b_q(x)
-        # K = self.W_b_k(x)
-        # V = self.W_b_v(x)
-
-        # Q = self.act_function(self.W_b_q(x))
-        # K = self.act_function(self.W_b_k(x))
-        # V = self.act_function(self.W_b_v(x))
-
         # split heads
-        Q = self.split_heads(Q)
-        K = self.split_heads(K)
-        V = self.split_heads(V)
+        Q = self.split_heads(Q, self.dk)
+        K = self.split_heads(K, self.dk)
+        V = self.split_heads(V, self.dv)
 
         return Q, K, V
     
@@ -136,7 +129,7 @@ class MultiHeadAttention(nn.Module):
 
         Q, K, V = self.qkv(x)
         
-        scores = Q.matmul(K.transpose(2, 3)) / math.sqrt(self.mdim_head_dimension)
+        scores = Q.matmul(K.transpose(2, 3)) / math.sqrt(self.dk)
 
         attention_scores = torch.nn.functional.softmax(scores + dist_weight + mask , dim=-1)
         
@@ -153,14 +146,14 @@ class MultiHeadAttention(nn.Module):
 
         attention_scores, V = self.get_attention(x, self.exponential_decay(self.pairwise_distance_matrix[:seq_len, :seq_len], self.distance_between_two_positions_weight[0,0]).expand(batch_size, self.num_heads, seq_len, seq_len), mask.expand(batch_size, self.num_heads, seq_len, seq_len))
         
-        head_output = ((attention_scores * self.exponential_decay(self.distance_to_end_matrix[:seq_len, :seq_len], self.distance_to_end_weight[0,0])).matmul(V)).sum(dim=-1) 
+        head_output = ((attention_scores * self.exponential_decay(self.distance_to_end_matrix[:seq_len, :seq_len], self.distance_to_end_weight[0,0])).matmul(V)).sum(dim=-1) # this sums over dv
         head_output = head_output.unsqueeze(2).expand(-1,-1,self.ncum,-1)
 
         # Expand weights to broadcast
-        weights_expanded = self.cum_weights.view(-1, self.num_heads, self.ncum, 1)
-        weights_expanded = weights_expanded.expand_as(head_output) 
+        weights_expanded = self.cum_weights.unsqueeze(0).unsqueeze(3).expand(batch_size, self.num_heads, self.ncum, 1)
+
          
-        head_outputs_cum = (head_output * weights_expanded).sum(dim=1)
+        head_outputs_cum = (head_output * weights_expanded).sum(dim=1) #it sums over heads
 
         return head_outputs_cum
  
@@ -175,21 +168,22 @@ def l2_penalty_params_except_bias(model, lambda_l2):
 
 def mini_transformer_loss(output, target, padded_masks):    
     
-    running_loss = torch.sum(((output[:, :-1, :] - (target[:, 2:, :])) * padded_masks[:, 2:, :]) **2) / output.shape[0]
+    running_loss = torch.sum(((output[:, :-2, :] - (target[:, 2:, :])) * padded_masks[:, 2:, :]) **2) / output.shape[0]
 
     return running_loss
  
 
 class MiniTransformer(nn.Module):
-    def __init__(self, d_model, num_heads, mdim_head_dimension, ncum, mask, pairwise_distance_matrix,  distance_to_end_matrix, device):
+    def __init__(self, d_model, num_heads, dk, dv, ncum, mask, pairwise_distance_matrix,  distance_to_end_matrix, device):
         super(MiniTransformer, self).__init__()
 
         self.d_model = d_model
         self.num_heads = num_heads
         self.ncum = ncum
-        self.mdim_head_dimension = mdim_head_dimension
+        self.dk = dk
+        self.dv = dv
         self.device = device
-        self.multiheadattn = MultiHeadAttention(d_model, num_heads, mdim_head_dimension, ncum, mask, pairwise_distance_matrix,  distance_to_end_matrix,  self.device)
+        self.multiheadattn = MultiHeadAttention(d_model, num_heads, dk, dv, ncum, mask, pairwise_distance_matrix,  distance_to_end_matrix,  self.device)
         self.prediction_weights = nn.Parameter(torch.randn(self.ncum, self.d_model))
         self.prediction_biases = nn.Parameter(torch.randn(d_model))
 
@@ -201,11 +195,11 @@ class MiniTransformer(nn.Module):
 
         
     def forward(self, data):
-        x = data[0][:, :-1, :]
-        padded_masks = data[1][:, :-1, :]
+        x = data[0]#[:, :-1, :]
+        padded_masks = data[1]#[:, :-1, :]
         out = self.multiheadattn(x)  # The last row is the label
 
-        pred = self.predict(out) * padded_masks
+        pred = self.predict(out) #* padded_masks
 
         return pred
 
@@ -300,17 +294,16 @@ def print_parameters(model):
     # print multihead parameters
     for head in range(model.num_heads):
         print("Head ", head+1, ":\n")
-        for dim in range(model.mdim_head_dimension):
-            print("\t Q weights: ", model.multiheadattn.W_b_q.weight[head*model.mdim_head_dimension + dim, :].data, ",\t b: ", model.multiheadattn.W_b_q.bias[head*model.mdim_head_dimension + dim].data, "\n")
-    
+        for dim in range(model.dk):
+            print("\t Q weights: ", model.multiheadattn.W_b_q.weight[head*model.dk + dim, :].data, ",\t b: ", model.multiheadattn.W_b_q.bias[head*model.dk + dim].data, "\n")
 
-            print("\t K weights: ", model.multiheadattn.W_b_k.weight[head*model.mdim_head_dimension + dim, :].data, "\t b: ", model.multiheadattn.W_b_k.bias[head*model.mdim_head_dimension + dim].data, "\n")
+            print("\t K weights: ", model.multiheadattn.W_b_k.weight[head*model.dk + dim, :].data, "\t b: ", model.multiheadattn.W_b_k.bias[head*model.dk + dim].data, "\n")
 
-
-            print("\t V weights: ", model.multiheadattn.W_b_v.weight[head*model.mdim_head_dimension + dim, :].data, "\t b: ", model.multiheadattn.W_b_v.bias[head*model.mdim_head_dimension + dim].data, "\n\n")
+    for dim in range(model.dv):
+            print("\t V weights: ", model.multiheadattn.W_b_v.weight[head*model.dv + dim, :].data, "\t b: ", model.multiheadattn.W_b_v.bias[head*model.dv + dim].data, "\n\n")
             print("\t cum weights: ", model.multiheadattn.cum_weights[head, :].data, "\n\n")
 
-        print("Prediction weights: \n", model.prediction_weights.data, "\n")
+    print("Prediction weights: \n", model.prediction_weights.data, "\n")
 
             
 
