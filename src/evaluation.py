@@ -81,6 +81,7 @@ def calculate_bench2_loss(train_data, eval_data, dimave):
     bench2pred = 0.0
     bench2delta = 0.0
     bench2loss = 0.0
+    bench2loss_predindex = 0.0
 
     for i in range(predn):
         for j in range(p):
@@ -97,11 +98,14 @@ def calculate_bench2_loss(train_data, eval_data, dimave):
 
             bench2delta = eval_data[i][-1, j] - bench2pred
             bench2loss += bench2delta * bench2delta
-
+            if j == pos3:
+                bench2loss_predindex += (bench2delta * bench2delta)
+            
 
     bench2loss /= predn*p
+    bench2loss_predindex /= predn
 
-    return bench2loss.item()
+    return bench2loss.item(), bench2loss_predindex.item()
 
 
 def calculate_repeat_loss(eval_data):
@@ -124,6 +128,7 @@ def calculate_repeat_loss(eval_data):
         else:
             bench3delta = eval_data[i][-1, :] - eval_data[i][-2, :]
             bench3loss += torch.mean(bench3delta * bench3delta).item()
+            
 
     bench3loss /= predn 
 

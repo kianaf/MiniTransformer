@@ -42,7 +42,7 @@ if __name__ == '__main__':
     # data_str = "ghq_b_sum"
     # data_str = "ghq_sum"
     data_str = "simulation"
-    batch_size = 1          # Batch size for loading data
+    batch_size = 2          # Batch size for loading data
     dk = 1                  # d_k
     dv = 1                  # d_v
     nheads = 16             # number of heads
@@ -50,11 +50,13 @@ if __name__ == '__main__':
     maxlen = 10             # maximum length of the sequence
     learning_rate = 1e-3
     lambda_l2 = 1e-3
-    EPOCHS = 50
+    EPOCHS = 100
     target_sample_size = 7
     nrepp = 10
 
-
+    # Set the random seed for reproducibility
+    torch.manual_seed(42)
+    
     if data_str == "simulation":
         n = 200
         p = 10
@@ -68,7 +70,7 @@ if __name__ == '__main__':
         # load real data
         data, maxlen = load_real_data(data_str)
         
-        n = int(0.8*len(data))
+        n = int(0.75*len(data))
         p = data[0].shape[1]
         print("Sample size: ", len(data))
         
@@ -141,16 +143,19 @@ if __name__ == '__main__':
     
     # Evaluate the model
     if data_str == "simulation":
-        bench2loss = calculate_bench2_loss(train_dataset, eval_dataset, dimave)
+        bench2loss, bench2loss_predindex = calculate_bench2_loss(train_dataset, eval_dataset, dimave)
         print("baseline informed loss: ", bench2loss)
+        
     else:
-        bench2loss = calculate_repeat_loss(eval_dataset)    
-        print("baseline repeat: ", bench2loss)
+        bench_repeat = calculate_repeat_loss(eval_dataset)    
+        print("baseline repeat: ", bench_repeat)
         
     print("regression loss total: ", regression_loss_total)
-    print("model loss total: ", model_loss_total.item()) 
+    print("model loss total: ", model_loss_total.item(), "\n") 
     
     
+    if data_str == "simulation":
+        print("baseline informed loss predindex: ", bench2loss_predindex)
     print("regression loss predindex: ", regression_loss_predindex)
     print("model loss predindex: ", model_loss_predindex.item()) 
 
