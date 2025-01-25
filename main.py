@@ -42,24 +42,24 @@ if __name__ == '__main__':
     # data_str = "ghq_b_sum"
     # data_str = "ghq_sum"
     data_str = "simulation"
-    batch_size = 2          # Batch size for loading data
+    batch_size = 1          # Batch size for loading data
     dk = 1                  # d_k
     dv = 1                  # d_v
-    nheads = 16             # number of heads
+    nheads = 2             # number of heads
     ncum = 2                 # number of cumulants
     maxlen = 10             # maximum length of the sequence
     learning_rate = 1e-3
     lambda_l2 = 1e-3
-    EPOCHS = 100
-    target_sample_size = 7
-    nrepp = 10
+    EPOCHS = 200
+    target_sample_size = 16
+    nrepp = 1
 
     # Set the random seed for reproducibility
     torch.manual_seed(42)
     
     if data_str == "simulation":
-        n = 200
-        p = 10
+        n = 50
+        p = 4
         maxlen = 10
         # Create Dataset and DataLoader
         train_dataset = SimulatedDataset(n, p, maxlen=maxlen, device = device).data

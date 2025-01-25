@@ -8,14 +8,20 @@ import matplotlib.pyplot as plt
 plt.rcParams['font.family'] = 'Helvetica'
 import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap
+import itertools
+from torch import Tensor
+from typing import List
 
 def get_context_predindex_pair_effect(model, p, context, targetall, nrepp):
 
     context_predindex_pair_effect = torch.zeros((p, p))  # Initialize a 2D array with zeros
 
+    torch.manual_seed(42)
     for rep in range(nrepp):
         print(f"Repetition {rep + 1}/{nrepp}")
         for i in range(p):
+            
+            
             meansq, tsq = meansq_context(model, context, targetall, i)  # Call the function
             context_predindex_pair_effect[i, :] += meansq  # Accumulate the results
 
@@ -36,6 +42,8 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
 
     targetall = all_comb(p)
     # targetall = get_the_existing_comb(train_dataset)
+    
+    torch.manual_seed(42)
 
     for repetition in range(nrepp):
 
@@ -43,6 +51,7 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
         print(f"Repetition {repetition + 1}/{nrepp}")
 
         # Randomly select indices
+        
         selected_indexes = torch.randint(0, len(targetall), (target_sample_size,), dtype=torch.int32)
         target_selected_indexes = targetall[selected_indexes]
         target = target_selected_indexes
@@ -54,11 +63,15 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
         # print("shape of tsq: ", tsq.shape)
 
         
-        # Compute empirical p-values for each value in meansq
-        pval = calc_pval(meansq, permute_meansq(tsq).to('cpu')) 
         
-        # collection = []
-        # pval = calc_pval(meansq, torch.stack(permute_meansq(tsq, 0, 0.0, collection)))
+        
+        if (target_sample_size == len(targetall)) and torch.backends.mps.is_available():
+            pval = permute_meansq_pval_cal(tsq, meansq).to('cpu')
+        else:
+            # Compute empirical p-values for each value in meansq
+            pval = calc_pval(meansq, permute_meansq(tsq).to('cpu')) 
+            
+
 
 
 
@@ -68,7 +81,11 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
     # Average the p-values over the number of repetitions
     avepval = pval_mat.mean(dim=1)
     
-    stdpval = pval_mat.std(dim=1)
+    if nrepp > 1:
+        # Compute standard deviation of p-values
+        stdpval = pval_mat.std(dim=1)
+    else:
+        stdpval = torch.zeros(p)
 
     return avepval, stdpval, context, targetall
 
@@ -103,7 +120,6 @@ def calc_pval(meansq, collection):
         pvals[i] = (abovecount/collection.shape[0])
 
     return pvals
-
 
 
 def permute_meansq(tsq, device='mps'):
@@ -148,34 +164,122 @@ def permute_meansq(tsq, device='mps'):
     return collection
 
 
-# def permute_meansq(tsq, device='mps'):
-#     """
-#     computation of the squared mean of sums over all possible combinations
-#     where, at each position (target), it selects one element from each column of tsq.
+def permute_meansq_pval_cal(
+    tsq: Tensor,
+    meansq: Tensor,
+    device: str = 'mps',
+    batch_size: int = 10000000,
+    verbose: bool = True
+) -> Tensor:
+    """
+    Optimized computation of the squared mean of sums over all possible combinations
+    where, at each position (target), it selects one element from each column of tsq.
 
-#     Parameters:
-#     tsq (torch.Tensor): 2D tensor of shape (ncont, ntar)
-#     device (str): Device to perform computation on ('cpu', 'cuda', or 'mps')
+    Parameters:
+    ----------
+    tsq : torch.Tensor
+        2D tensor of shape (ncont, ntar), where each column represents a set of elements.
+    meansq : torch.Tensor
+        1D tensor of shape (ncont,) containing mean squared values for comparison.
+    device : str, optional
+        Device to perform computation on ('cpu', 'cuda', or 'mps'), by default 'mps'.
+    batch_size : int, optional
+        Number of combinations to process per batch, by default 100000.
+    verbose : bool, optional
+        If True, prints progress updates, by default True.
 
-#     Returns:
-#     torch.Tensor: 1D tensor containing the computed results for each combination.
-#     """
-#     tsq = tsq.to(device)
-#     ncont, ntar = tsq.shape
+    Returns:
+    -------
+    torch.Tensor
+        1D tensor of shape (ncont,) containing the computed p-values for each cont.
+    """
+    # Move tensors to the specified device
+    tsq = tsq.to(device)
+    meansq = meansq.to(device)
+    ncont, ntar = tsq.shape
 
-#     # Generate all possible combinations of row indices for each column
-#     indices = torch.cartesian_prod(*[torch.arange(ncont, device=device) for _ in range(ntar)])  # Shape: (ncomb, ntar)
+    # Extract columns as lists for itertools.product
+    # Convert each column tensor to a list
+    col_sets: List[List[float]] = [tsq[:, i].tolist() for i in range(ntar)]
 
-#     # Use combinations to index tsq directly, preserving 2D structure
-#     selected_values = tsq[indices, torch.arange(ntar, device=device)]  # Shape: (ncomb, ntar)
+    # Initialize pval tensor
+    pval = torch.zeros(ncont, device=device)
 
-#     # Compute the squared mean for each combination
-#     collection = selected_values.mean(dim=1) ** 2  # Shape: (ncomb,)
+    # Total number of combinations for normalization
+    total_combinations = ncont ** ntar  # Adjust if sets have different sizes
 
-#     return collection
+    # Create an iterator for the Cartesian product
+    cartesian_iter = itertools.product(*col_sets)
 
+    # Initialize counter
+    cnt = 0
 
+    # Function to process a single batch
+    def process_batch(batch: List[tuple]) -> Tensor:
+        """
+        Processes a batch of combinations.
 
+        Parameters:
+        ----------
+        batch : List[tuple]
+            List of combination tuples.
+
+        Returns:
+        -------
+        torch.Tensor
+            Tensor of shape (batch_size, ncont) representing the batch.
+        """
+        # Convert list of tuples to a 2D tensor (batch_size, ncont)
+        # Use torch.float32 for precision; adjust dtype if necessary
+        batch_tensor = torch.tensor(batch, dtype=tsq.dtype, device=device)  # Shape: (batch_size, ncont)
+        return batch_tensor
+
+    # Iterate over the Cartesian product in batches
+    while True:
+        # Fetch a batch of combinations
+        batch = list(itertools.islice(cartesian_iter, batch_size))
+        if not batch:
+            break  # Exit loop if no more combinations
+
+        # Convert batch to tensor
+        try:
+            batch_tensor = process_batch(batch)  # Shape: (batch_size, ncont)
+        except Exception as e:
+            print(f"Error processing batch at count {cnt}: {e}")
+            break
+
+        # Compute mean across targets (columns) for each combination
+        # Shape: (batch_size,)
+        mean_collection = batch_tensor.mean(dim=1)
+
+        # Compute squared mean
+        # Shape: (batch_size,)
+        squared_mean_collection = mean_collection ** 2
+
+        # Compare with meansq
+        # meansq: (ncont,)
+        # squared_mean_collection: (batch_size,)
+        # We need to compare each squared mean with each meansq element
+        # To do this, we can expand dimensions for broadcasting
+
+        # Expand squared_mean_collection to (batch_size, 1)
+        # meansq is (ncont,), we need to expand to (1, ncont)
+        comparison = (squared_mean_collection.unsqueeze(1) >= meansq.unsqueeze(0)).float()  # Shape: (batch_size, ncont)
+
+        # Sum over the batch dimension to get counts per cont
+        pval += comparison.sum(dim=0)  # Shape: (ncont,)
+
+        # Update counter
+        cnt += len(batch)
+
+        # Print progress if verbose
+        if verbose and (cnt % (batch_size * 10) == 0):
+            print(f"Processed {cnt} combinations out of approximately {total_combinations}")
+
+    # Normalize pval to get p-values
+    pval = pval / total_combinations
+
+    return pval
 
 def meansq_context(model, context, target, predindex):
     """
@@ -190,7 +294,7 @@ def meansq_context(model, context, target, predindex):
     Returns:
     tuple of list of float: Tuple containing the squared mean of differences (meansq) and the differences (tsq).
     """
-
+    # torch.manual_seed(42)
     model.eval()
 
     ncont = len(context)
@@ -249,7 +353,7 @@ def print_p_values(avepval, stdpval):
     stdpval (torch.Tensor): Standard deviation of p-values to print.
     """
     for i in range(avepval.shape[0]):
-        print(f"Variable {i+1}: {avepval[i]:.6f} ± {stdpval[i]:.6f}")
+        print(f"Variable {i+1}: {avepval[i]:.4f} ± {stdpval[i]:.2f}")
 
 
 def plot_context_predindex_pair_effect(context_predindex_pair_effect, data_str, run_path):
