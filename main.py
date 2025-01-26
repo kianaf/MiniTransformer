@@ -133,7 +133,7 @@ if __name__ == '__main__':
     eval_dataloader = DataLoader(eval_dataset, batch_size=1, shuffle=True, collate_fn=collate_function, num_workers=0)
 
     
-    dimave, bench1loss = calculate_bench1_loss(train_dataset, eval_dataset)
+    dimave, bench1loss, benchloss_predindex = calculate_bench1_loss(train_dataset, eval_dataset, predindex)
     regression_loss_predindex, regression_loss_total = calculate_regression_loss(train_dataset, eval_dataset, predindex)
     model_loss_predindex, model_loss_total = evaluate_mini_transformer(eval_dataloader, model, predindex)
     
@@ -147,9 +147,12 @@ if __name__ == '__main__':
         print("baseline informed loss: ", bench2loss)
         
     else:
-        bench_repeat = calculate_repeat_loss(eval_dataset)    
+        bench_repeat, bench_repeat_predindex = calculate_repeat_loss(eval_dataset, predindex)    
         print("baseline repeat: ", bench_repeat)
         
+        
+    print("baseline average loss predindex: ", benchloss_predindex)
+    print("baseline repeat predindex: ", bench_repeat_predindex)   
     print("regression loss total: ", regression_loss_total)
     print("model loss total: ", model_loss_total.item(), "\n") 
     

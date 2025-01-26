@@ -4,7 +4,7 @@ import statsmodels.api as sm
 
 import numpy as np
 
-def calculate_bench1_loss(train_data, eval_data):
+def calculate_bench1_loss(train_data, eval_data, predindex):
     """
     Calculate the loss of the benchmark 1 model.
     averaging over all timepoints of all the sequences
@@ -23,15 +23,18 @@ def calculate_bench1_loss(train_data, eval_data):
 
     benchdelta = 0.0
     benchloss = 0.0
+    benchloss_predindex = 0.0   
 
     for i in range(predn):
         benchdelta = eval_data[i][-1, :] - dimave
         benchloss += torch.mean(benchdelta * benchdelta).item()
+        benchloss_predindex += torch.mean(benchdelta[predindex] * benchdelta[predindex]).item()
 
     benchloss /= predn
+    benchloss_predindex /= predn
     
 
-    return dimave, benchloss
+    return dimave, benchloss, benchloss_predindex
 
 
 
@@ -108,7 +111,7 @@ def calculate_bench2_loss(train_data, eval_data, dimave):
     return bench2loss.item(), bench2loss_predindex.item()
 
 
-def calculate_repeat_loss(eval_data):
+def calculate_repeat_loss(eval_data, predindex):
     """
     Calculate the loss of the benchmark 3 model.
     Repeat the last timepoint of each sequence
@@ -120,6 +123,7 @@ def calculate_repeat_loss(eval_data):
     size = predn
 
     bench3loss = 0.0
+    bench3_loss_predindex = 0.0
 
     for i in range(predn):
         if eval_data[i].shape[1] < 3:
@@ -127,12 +131,14 @@ def calculate_repeat_loss(eval_data):
                 continue
         else:
             bench3delta = eval_data[i][-1, :] - eval_data[i][-2, :]
+            bench3_loss_predindex += torch.mean(bench3delta[predindex]*bench3delta[predindex]).item()
             bench3loss += torch.mean(bench3delta * bench3delta).item()
             
 
     bench3loss /= predn 
+    bench3_loss_predindex /= predn
 
-    return bench3loss
+    return bench3loss, bench3_loss_predindex
 
 
 def calculate_regression_loss(train_data, eval_data, predindex):

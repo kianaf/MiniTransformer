@@ -65,7 +65,7 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
         
         
         
-        if (target_sample_size == len(targetall)) and torch.backends.mps.is_available():
+        if (target_sample_size >6) and torch.backends.mps.is_available():
             pval = permute_meansq_pval_cal(tsq, meansq).to('cpu')
         else:
             # Compute empirical p-values for each value in meansq
@@ -168,7 +168,7 @@ def permute_meansq_pval_cal(
     tsq: Tensor,
     meansq: Tensor,
     device: str = 'mps',
-    batch_size: int = 10000000,
+    batch_size: int = 1000000,
     verbose: bool = True
 ) -> Tensor:
     """
@@ -278,6 +278,8 @@ def permute_meansq_pval_cal(
 
     # Normalize pval to get p-values
     pval = pval / total_combinations
+    
+    print(pval)
 
     return pval
 
@@ -319,7 +321,6 @@ def meansq_context(model, context, target, predindex):
             # Expand weights to broadcast
             weights_expanded = model.multiheadattn.cum_weights.unsqueeze(0).unsqueeze(3).expand(1, model.num_heads, model.ncum, 1) # 1 here we some over dv or it is one
 
-            # weights_expanded = weights_expanded.expand_as(transval) 
             
             head_outputs_transval = (transval * weights_expanded).sum(dim=1)
             head_outputs_curvalueself = (pureval * weights_expanded).sum(dim=1)
@@ -327,7 +328,12 @@ def meansq_context(model, context, target, predindex):
             pred_transval = model.predict(head_outputs_transval)
             pred_curvalueself = model.predict(head_outputs_curvalueself)
     
-            # curdelta = torch.abs(pred_transval - pred_curvalueself)[:, :, predindex].item()
+    
+    
+    
+    
+    
+    
             curdelta = (pred_transval - pred_curvalueself)[:, :, predindex].item()
             
             tsq[i, j] = curdelta #* curdelta
@@ -408,9 +414,9 @@ def plot_context_predindex_pair_effect(context_predindex_pair_effect, data_str, 
     plt.figure(figsize=(8, 8))
     im = plt.imshow(context_predindex_pair_effect, cmap=custom_cmap, interpolation='nearest')
     plt.colorbar(im)
-    plt.xlabel(r"Context ($c_j$)")
-    plt.ylabel(r"Target ($k$)")
-    plt.title(r"Pairwise context-target effect $\overline{\Delta^2}$")
+    plt.xlabel(r"Context")
+    plt.ylabel(r"Target")
+    plt.title(r"Pairwise context-target effect")
 
     # Rotate the x-axis labels by 90 degrees
     plt.xticks(ticks=range(len(variable_names)), labels=variable_names, rotation=90)
@@ -419,3 +425,5 @@ def plot_context_predindex_pair_effect(context_predindex_pair_effect, data_str, 
     # save the plot
     plt.savefig(run_path + f"/context_target_effect_{data_str}.png", dpi=300, bbox_inches="tight")
     plt.show()
+    
+    return plt
