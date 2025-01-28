@@ -13,7 +13,7 @@ from src.transformers import MiniTransformer
 import src.transformers as transformerFunctions
 from src.transformers import init_weights_recursive
 from src.transformers import print_parameters
-from src.transformers import create_custom_mask, create_distance_to_end_matrix, create_pairwise_distance_matrix
+from src.transformers import create_custom_mask_pred, create_custom_mask_pair, create_distance_to_end_matrix, create_pairwise_distance_matrix
 from src.evaluation import calculate_bench1_loss, calculate_bench2_loss, calculate_repeat_loss, calculate_regression_loss, evaluate_mini_transformer
 from src.statistical_testing import statistical_testing, print_p_values, plot_context_predindex_pair_effect, get_context_predindex_pair_effect
 import torch.autograd.profiler as profiler
@@ -45,21 +45,21 @@ if __name__ == '__main__':
     batch_size = 1          # Batch size for loading data
     dk = 1                  # d_k
     dv = 1                  # d_v
-    nheads = 2             # number of heads
+    nheads = 16             # number of heads
     ncum = 2                 # number of cumulants
     maxlen = 10             # maximum length of the sequence
     learning_rate = 1e-3
     lambda_l2 = 1e-3
-    EPOCHS = 200
-    target_sample_size = 16
-    nrepp = 1
+    EPOCHS = 100
+    target_sample_size = 7
+    nrepp = 10
 
     # Set the random seed for reproducibility
-    torch.manual_seed(42)
+    # torch.manual_seed(42)
     
     if data_str == "simulation":
-        n = 50
-        p = 4
+        n = 200
+        p = 10
         maxlen = 10
         # Create Dataset and DataLoader
         train_dataset = SimulatedDataset(n, p, maxlen=maxlen, device = device).data
@@ -79,8 +79,8 @@ if __name__ == '__main__':
         predindex = 9
 
     
-
-    mask = create_custom_mask(maxlen, device)
+    mask_pairwise = create_custom_mask_pair(maxlen, device)
+    mask_pred = create_custom_mask_pred(maxlen, device)
     distance_to_end_matrix = create_distance_to_end_matrix(maxlen, device)
     pairwise_distance_matrix = create_pairwise_distance_matrix(maxlen, device)
 
@@ -88,7 +88,7 @@ if __name__ == '__main__':
 
     dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_function,  num_workers=0)
     
-    model = MiniTransformer(p, nheads, dk, dv, ncum, mask, pairwise_distance_matrix, distance_to_end_matrix,  device)
+    model = MiniTransformer(p, nheads, dk, dv, ncum, mask_pairwise, mask_pred, pairwise_distance_matrix, distance_to_end_matrix,  device)
 
     model.apply(init_weights_recursive)
     model.to(device)
@@ -152,13 +152,14 @@ if __name__ == '__main__':
         
         
     print("baseline average loss predindex: ", benchloss_predindex)
-    print("baseline repeat predindex: ", bench_repeat_predindex)   
-    print("regression loss total: ", regression_loss_total)
+      
     print("model loss total: ", model_loss_total.item(), "\n") 
     
     
     if data_str == "simulation":
         print("baseline informed loss predindex: ", bench2loss_predindex)
+    else:
+        print("baseline repeat predindex: ", bench_repeat_predindex)  
     print("regression loss predindex: ", regression_loss_predindex)
     print("model loss predindex: ", model_loss_predindex.item()) 
 

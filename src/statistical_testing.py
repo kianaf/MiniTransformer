@@ -16,7 +16,6 @@ def get_context_predindex_pair_effect(model, p, context, targetall, nrepp):
 
     context_predindex_pair_effect = torch.zeros((p, p))  # Initialize a 2D array with zeros
 
-    torch.manual_seed(42)
     for rep in range(nrepp):
         print(f"Repetition {rep + 1}/{nrepp}")
         for i in range(p):
@@ -40,8 +39,8 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
     # Define avepval tensor to accumulate p-values
     pval_mat = torch.zeros(p, nrepp)
 
-    targetall = all_comb(p)
-    # targetall = get_the_existing_comb(train_dataset)
+    # targetall = all_comb(p)
+    targetall = get_the_existing_comb(train_dataset)
     
     torch.manual_seed(42)
 
@@ -65,7 +64,7 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
         
         
         
-        if (target_sample_size >6) and torch.backends.mps.is_available():
+        if (target_sample_size > 7) and torch.backends.mps.is_available():
             pval = permute_meansq_pval_cal(tsq, meansq).to('cpu')
         else:
             # Compute empirical p-values for each value in meansq
@@ -92,6 +91,8 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
    
 
 def all_comb(p):
+    
+    # torch.manual_seed(42)
     # Generate all combinations of binary numbers from 0 to 2^p - 1
     # This will be the range of numbers represented in binary
     binary_range = torch.arange(2 ** p)
@@ -120,6 +121,48 @@ def calc_pval(meansq, collection):
         pvals[i] = (abovecount/collection.shape[0])
 
     return pvals
+
+
+# def permute_meansq(tsq, device='mps'):
+#     """
+#     Computes the squared mean of sums over all possible combinations
+#     where, at each position (target), it selects one element from each column of tsq.
+
+#     Parameters:
+#     tsq (torch.Tensor): 2D tensor of shape (ncont, ntar)
+#     device (str): Device to perform computation on ('cpu' or 'cuda')
+
+#     Returns:
+#     torch.Tensor: 1D tensor containing the computed results for each combination.
+#     """
+#     tsq = tsq.to(device)
+
+#     ncont, ntar = tsq.shape
+
+#     # Generate all possible combinations of contributors per target
+#     indices = [torch.arange(ncont,  device=device) for _ in range(ntar)]
+#     combinations = torch.cartesian_prod(*indices)  # Shape: (ncomb, ntar), where ncomb = ncont ** ntar
+
+#     # Compute linear indices to select elements from tsq.flatten()
+#     # Linear index formula: index = row_index * ntar + column_index
+
+#     # Flatten tsq to a 1D tensor for advanced indexing
+#     tsq_flat = tsq.flatten()
+
+#     # Select the values corresponding to each combination
+#     # selected_values = tsq_flat[combinations * ntar +  torch.arange(ntar,  device=device).unsqueeze(0).expand(combinations.size(0), -1)]
+
+
+#     # Use combinations to index tsq directly, preserving 2D structure
+#     selected_values = tsq[combinations, torch.arange(ntar,  device=device)] # Shape: (ncomb, ntar)
+
+
+
+#     # Compute the squared mean for each combination
+#     collection = (selected_values.mean(dim=1) ** 2)
+#     # collection = selected_values.mean(dim=1)
+
+#     return collection
 
 
 def permute_meansq(tsq, device='mps'):
@@ -296,7 +339,7 @@ def meansq_context(model, context, target, predindex):
     Returns:
     tuple of list of float: Tuple containing the squared mean of differences (meansq) and the differences (tsq).
     """
-    # torch.manual_seed(42)
+    
     model.eval()
 
     ncont = len(context)
@@ -319,7 +362,7 @@ def meansq_context(model, context, target, predindex):
             pureval = (curvalueself.sum(dim = -1)).unsqueeze(2).expand(1,model.num_heads, model.ncum,-1)
 
             # Expand weights to broadcast
-            weights_expanded = model.multiheadattn.cum_weights.unsqueeze(0).unsqueeze(3).expand(1, model.num_heads, model.ncum, 1) # 1 here we some over dv or it is one
+            weights_expanded = model.multiheadattn.cum_weights.unsqueeze(0).unsqueeze(3).expand(1, model.num_heads, model.ncum, 1) # 1 here we sum over dv or it is one
 
             
             head_outputs_transval = (transval * weights_expanded).sum(dim=1)
@@ -328,12 +371,7 @@ def meansq_context(model, context, target, predindex):
             pred_transval = model.predict(head_outputs_transval)
             pred_curvalueself = model.predict(head_outputs_curvalueself)
     
-    
-    
-    
-    
-    
-    
+
             curdelta = (pred_transval - pred_curvalueself)[:, :, predindex].item()
             
             tsq[i, j] = curdelta #* curdelta

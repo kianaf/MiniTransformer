@@ -10,7 +10,7 @@ from torchviz import make_dot
 
 
 # Create a triangular matrix as per the description
-def create_custom_mask(seq_len, device):
+def create_custom_mask_pred(seq_len, device):
     matrix = torch.zeros((seq_len, seq_len), device=device)
     
     # Fill the diagonal after the main diagonal with zeros
@@ -25,14 +25,29 @@ def create_custom_mask(seq_len, device):
     return matrix * -1e9
 
 
+def create_custom_mask_pair(seq_len, device):
+    matrix = torch.zeros((seq_len, seq_len), device=device)
+    
+    # Fill the diagonal after the main diagonal with zeros
+    for i in range(seq_len - 1):
+        matrix[i, i+1] = 0
+    
+    # Fill all the elements after that diagonal with ones
+    for i in range(seq_len):
+        for j in range(i + 1, seq_len):
+            matrix[i, j] = 1
+    
+    return matrix * -1e9
+
+
 
 def create_distance_to_end_matrix(seq_len, device):
-    matrix = torch.zeros((seq_len, seq_len),  device=device)
+    matrix = torch.ones((seq_len, seq_len),  device=device) * 1e9
     
     # Fill the diagonal after the main diagonal with zeros
     for i in range(seq_len - 1):
         for j in range(i+2):
-            matrix[i, j] = i + 2 - j
+            matrix[i, j] = i + 1 - j
     
     return matrix
 
@@ -50,6 +65,7 @@ def create_pairwise_distance_matrix(seq_len, device):
 def init_weights_recursive(module):
     # Apply to all parameters in the module
     for param in module.parameters():
+        # print(param)
         with torch.no_grad():
             # Initialize using the same logic as the C++ code
             param.copy_(torch.rand(param.size()) * 0.2 - 0.1)
@@ -60,7 +76,7 @@ def init_weights_recursive(module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, num_heads, dk, dv, ncum, mask, pairwise_distance_matrix,  distance_to_end_matrix, device):
+    def __init__(self, d_model, num_heads, dk, dv, ncum, mask_pairwise,  mask_pred, pairwise_distance_matrix,  distance_to_end_matrix, device):
         super(MultiHeadAttention, self).__init__()
         
         self.device = device
@@ -70,7 +86,8 @@ class MultiHeadAttention(nn.Module):
         self.dk = dk
         self.dv = dv
         self.cum_weights = nn.Parameter(torch.randn(num_heads, ncum))
-        self.mask = mask
+        self.mask_pairwise = mask_pairwise
+        self.mask_pred = mask_pred
         self.pairwise_distance_matrix = pairwise_distance_matrix
         self.distance_to_end_matrix = distance_to_end_matrix
 
@@ -142,11 +159,15 @@ class MultiHeadAttention(nn.Module):
 
         batch_size, seq_len, _ = x.size()
         
-        mask = self.mask[:seq_len, :seq_len] 
-
-        attention_scores, V = self.get_attention(x, self.exponential_decay(self.pairwise_distance_matrix[:seq_len, :seq_len], self.distance_between_two_positions_weight[0,0]).expand(batch_size, self.num_heads, seq_len, seq_len), mask.expand(batch_size, self.num_heads, seq_len, seq_len))
+        mask_pairwise = self.mask_pairwise[:seq_len, :seq_len] 
         
-        head_output = ((attention_scores * self.exponential_decay(self.distance_to_end_matrix[:seq_len, :seq_len], self.distance_to_end_weight[0,0])).matmul(V)).sum(dim=-1) # this sums over dv
+        mask_pred = self.mask_pred[:seq_len, :seq_len]
+
+        attention_scores, V = self.get_attention(x, self.exponential_decay(self.pairwise_distance_matrix[:seq_len, :seq_len], self.distance_between_two_positions_weight[0,0]).expand(batch_size, self.num_heads, seq_len, seq_len), mask_pairwise.expand(batch_size, self.num_heads, seq_len, seq_len))
+        
+        head_output = ((self.exponential_decay(self.distance_to_end_matrix[:seq_len, :seq_len], self.distance_to_end_weight[0,0])).matmul(attention_scores.matmul(V))).sum(dim=-1) # this sums over dv
+   
+        # head_output = ((attention_scores * self.exponential_decay(self.distance_to_end_matrix[:seq_len, :seq_len], self.distance_to_end_weight[0,0])).matmul(V)).sum(dim=-1) # this sums over dv
         head_output = head_output.unsqueeze(2).expand(-1,-1,self.ncum,-1)
 
         # Expand weights to broadcast
@@ -174,7 +195,7 @@ def mini_transformer_loss(output, target, padded_masks):
  
 
 class MiniTransformer(nn.Module):
-    def __init__(self, d_model, num_heads, dk, dv, ncum, mask, pairwise_distance_matrix,  distance_to_end_matrix, device):
+    def __init__(self, d_model, num_heads, dk, dv, ncum, mask_pairwise,  mask_pred, pairwise_distance_matrix,  distance_to_end_matrix, device):
         super(MiniTransformer, self).__init__()
 
         self.d_model = d_model
@@ -183,7 +204,7 @@ class MiniTransformer(nn.Module):
         self.dk = dk
         self.dv = dv
         self.device = device
-        self.multiheadattn = MultiHeadAttention(d_model, num_heads, dk, dv, ncum, mask, pairwise_distance_matrix,  distance_to_end_matrix,  self.device)
+        self.multiheadattn = MultiHeadAttention(d_model, num_heads, dk, dv, ncum, mask_pairwise,  mask_pred, pairwise_distance_matrix,  distance_to_end_matrix,  self.device)
         self.prediction_weights = nn.Parameter(torch.randn(self.ncum, self.d_model))
         self.prediction_biases = nn.Parameter(torch.randn(d_model))
 
@@ -195,8 +216,8 @@ class MiniTransformer(nn.Module):
 
         
     def forward(self, data):
-        x = data[0]#[:, :-1, :]
-        padded_masks = data[1]#[:, :-1, :]
+        x = data[0]
+        padded_masks = data[1]
         out = self.multiheadattn(x)  # The last row is the label
 
         pred = self.predict(out) #* padded_masks
@@ -248,13 +269,16 @@ def train_mini_transformer(model, train_loader, optimizer, lambda_l2, EPOCHS, de
     model.train(True)
     best_vloss = 1_000_000.
     for epoch_number in range(EPOCHS):
-        print('EPOCH {}:'.format(epoch_number + 1))
+        
+        
 
 
 
         avg_loss = train_mini_transformer_one_epoch(model, train_loader, optimizer, lambda_l2, device)
 
-        print('avg_loss: {:.5f}'.format(avg_loss))
+        if epoch_number % 10 == 0:
+            print('EPOCH {}:'.format(epoch_number + 1))
+            print('avg_loss: {:.5f}'.format(avg_loss))
 
         # # Log model parameters (weights and biases) after every epoch
         # for name, param in model.named_parameters():

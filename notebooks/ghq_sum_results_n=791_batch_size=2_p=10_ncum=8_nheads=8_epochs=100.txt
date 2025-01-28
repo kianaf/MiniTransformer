@@ -1,0 +1,12 @@
+ghq_sum results n = 791
+baseline repeat: 0.212 ± 0.020
+baseline average loss: 0.149 ± 0.006
+regression loss total: 0.135 ± 0.008
+model loss total: 0.129 ± 0.008
+
+baseline repeat predindex: 0.298 ± 0.020
+baseline average loss predindex: 0.208 ± 0.018
+regression loss predindex: 0.190 ± 0.023
+model loss predindex: 0.178 ± 0.024
+
+
