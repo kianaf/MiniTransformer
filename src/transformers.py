@@ -47,7 +47,7 @@ def create_distance_to_end_matrix(seq_len, device):
     # Fill the diagonal after the main diagonal with zeros
     for i in range(seq_len - 1):
         for j in range(i+2):
-            matrix[i, j] = i + 1 - j
+            matrix[i, j] = i +1 - j
     
     return matrix
 

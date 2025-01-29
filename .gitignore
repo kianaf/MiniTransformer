@@ -6,4 +6,7 @@ data/dementia_data/data_version/*
 env
 runs
 .vscode
+src/__pycache__
+notebooks/results
+notebooks/statistical_testing
 

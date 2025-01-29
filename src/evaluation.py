@@ -228,9 +228,9 @@ def evaluate_mini_transformer(eval_data, model, predindex):
             continue
         else:
             # no padding here
-            pred = model(batch)
-            loss += nn.MSELoss()(pred[:, -3, :], batch[0][:, -1, :])
-            loss_predindex += nn.MSELoss()(pred[:, -3, predindex], batch[0][:, -1, predindex])
+            pred = model((batch[0][:, :-1, :], batch[1][:, :-1, :]))
+            loss += nn.MSELoss()(pred[:, -2, :], batch[0][:, -1, :])
+            loss_predindex += nn.MSELoss()(pred[:, -2, predindex], batch[0][:, -1, predindex])
 
     
     return loss_predindex/size, loss/size

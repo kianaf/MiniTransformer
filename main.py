@@ -32,8 +32,8 @@ device = torch.device("cpu")
 
 
 # Set the random seed for reproducibility
-# seed = 42
-# torch.manual_seed(seed)
+seed = 42
+torch.manual_seed(seed)
 
 
 if __name__ == '__main__':
@@ -50,7 +50,7 @@ if __name__ == '__main__':
     maxlen = 10             # maximum length of the sequence
     learning_rate = 1e-3
     lambda_l2 = 1e-3
-    EPOCHS = 100
+    EPOCHS = 50
     target_sample_size = 7
     nrepp = 10
 
@@ -98,8 +98,8 @@ if __name__ == '__main__':
     start_time = time.time()
 
     # Define optimizer
-    # optimizer = optim.Adam(model.parameters(), lr= learning_rate, weight_decay=lambda_l2)
-    optimizer = optim.Adam(model.parameters(), lr= learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr= learning_rate, weight_decay=lambda_l2)
+    # optimizer = optim.Adam(model.parameters(), lr= learning_rate)
     
     print("Number of Parameters", transformerFunctions.count_parameters(model))
     
