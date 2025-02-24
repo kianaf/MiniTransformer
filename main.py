@@ -13,7 +13,7 @@ from src.transformers import MiniTransformer
 import src.transformers as transformerFunctions
 from src.transformers import init_weights_recursive
 from src.transformers import print_parameters
-from src.transformers import create_custom_mask_pred, create_custom_mask_pair, create_distance_to_end_matrix, create_pairwise_distance_matrix
+from src.transformers import create_custom_mask_pred, create_custom_mask_pair, create_distance_to_end_matrix, create_pairwise_distance_matrix, new_weird_oh_my_god_pred_distance_matrix
 from src.evaluation import calculate_bench1_loss, calculate_bench2_loss, calculate_repeat_loss, calculate_regression_loss, evaluate_mini_transformer
 from src.statistical_testing import statistical_testing, print_p_values, plot_context_predindex_pair_effect, get_context_predindex_pair_effect
 import torch.autograd.profiler as profiler
@@ -29,10 +29,11 @@ import torch.autograd.profiler as profiler
 device = torch.device("cpu")
 
 
-
+torch.set_printoptions(sci_mode=False, precision=6)
 
 # Set the random seed for reproducibility
-seed = 42
+# seed = 42
+seed = torch.initial_seed()
 torch.manual_seed(seed)
 
 
@@ -50,15 +51,15 @@ if __name__ == '__main__':
     maxlen = 10             # maximum length of the sequence
     learning_rate = 1e-3
     lambda_l2 = 1e-3
-    EPOCHS = 50
-    target_sample_size = 7
+    EPOCHS = 100
+    target_sample_size = 8
     nrepp = 10
 
     # Set the random seed for reproducibility
     # torch.manual_seed(42)
     
     if data_str == "simulation":
-        n = 200
+        n = 200 
         p = 10
         maxlen = 10
         # Create Dataset and DataLoader
@@ -81,16 +82,20 @@ if __name__ == '__main__':
     
     mask_pairwise = create_custom_mask_pair(maxlen, device)
     mask_pred = create_custom_mask_pred(maxlen, device)
-    distance_to_end_matrix = create_distance_to_end_matrix(maxlen, device)
+    distance_to_end_matrix = new_weird_oh_my_god_pred_distance_matrix(maxlen, device)#create_distance_to_end_matrix(maxlen, device)
     pairwise_distance_matrix = create_pairwise_distance_matrix(maxlen, device)
 
    
 
     dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_function,  num_workers=0)
-    
-    model = MiniTransformer(p, nheads, dk, dv, ncum, mask_pairwise, mask_pred, pairwise_distance_matrix, distance_to_end_matrix,  device)
+    eval_dataloader = DataLoader(eval_dataset, batch_size=1000, shuffle=False, collate_fn=collate_function, num_workers=0)
+
+    model = MiniTransformer(p, nheads, dk, dv, ncum, mask_pairwise, pairwise_distance_matrix, distance_to_end_matrix,  device)
 
     model.apply(init_weights_recursive)
+    
+    print_parameters(model)
+    
     model.to(device)
 
     # model = torch.compile(model)
@@ -103,7 +108,25 @@ if __name__ == '__main__':
     
     print("Number of Parameters", transformerFunctions.count_parameters(model))
     
-    run_path = transformerFunctions.train_mini_transformer(model, dataloader, optimizer, lambda_l2, EPOCHS, device)
+    
+    
+    # model.multiheadattn.distance_between_two_positions_weight.data.copy_(float(0))
+    # model.multiheadattn.distance_to_end_weight.data.copy_(float(0))
+    
+
+    sample_flat = [1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1]
+    tensor_data = torch.tensor(sample_flat, dtype=torch.float32)
+
+    # Reshape the tensor to have shape (1, whatever, 10)
+    # The '-1' lets PyTorch automatically infer the correct size for that dimension.
+    sample = tensor_data.view(1, -1, 10)
+    
+    padding_sample = torch.tensor([True]).expand_as(sample)
+    
+    output = model((sample[:,:-1,:], padding_sample[:,:-1,:]))
+
+    
+    run_path = transformerFunctions.train_mini_transformer(model, dataloader, eval_dataloader, optimizer, lambda_l2, EPOCHS, device)
 
 
     # # Enable profiling
@@ -128,7 +151,7 @@ if __name__ == '__main__':
     print(f"Execution time: {execution_time:.6f} seconds")
 
     # reload transformer.py
-    importlib.reload(transformerFunctions)
+    # importlib.reload(transformerFunctions)
     
     eval_dataloader = DataLoader(eval_dataset, batch_size=1, shuffle=True, collate_fn=collate_function, num_workers=0)
 
@@ -175,6 +198,10 @@ if __name__ == '__main__':
     # tensor = torch.zeros(1, 2, 10)
     
     
+    print("distance to end par:", model.multiheadattn.distance_to_end_weight.item(), "\n")
+    print("distance between pair par:", model.multiheadattn.distance_between_two_positions_weight.item(), "\n")
+
+
     
     avepval, stdpval, context, targetall = statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample_size)
     
@@ -183,3 +210,6 @@ if __name__ == '__main__':
     context_predindex_pair_effect = get_context_predindex_pair_effect(model, p, context, targetall, nrepp)
 
     plot_context_predindex_pair_effect(context_predindex_pair_effect, data_str, run_path)
+
+
+

@@ -42,7 +42,7 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
     # targetall = all_comb(p)
     targetall = get_the_existing_comb(train_dataset)
     
-    torch.manual_seed(42)
+    # torch.manual_seed(42)
 
     for repetition in range(nrepp):
 
@@ -64,7 +64,7 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
         
         
         
-        if (target_sample_size > 7) and torch.backends.mps.is_available():
+        if (target_sample_size > 8) and torch.backends.mps.is_available():
             pval = permute_meansq_pval_cal(tsq, meansq).to('cpu')
         else:
             # Compute empirical p-values for each value in meansq
@@ -121,48 +121,6 @@ def calc_pval(meansq, collection):
         pvals[i] = (abovecount/collection.shape[0])
 
     return pvals
-
-
-# def permute_meansq(tsq, device='mps'):
-#     """
-#     Computes the squared mean of sums over all possible combinations
-#     where, at each position (target), it selects one element from each column of tsq.
-
-#     Parameters:
-#     tsq (torch.Tensor): 2D tensor of shape (ncont, ntar)
-#     device (str): Device to perform computation on ('cpu' or 'cuda')
-
-#     Returns:
-#     torch.Tensor: 1D tensor containing the computed results for each combination.
-#     """
-#     tsq = tsq.to(device)
-
-#     ncont, ntar = tsq.shape
-
-#     # Generate all possible combinations of contributors per target
-#     indices = [torch.arange(ncont,  device=device) for _ in range(ntar)]
-#     combinations = torch.cartesian_prod(*indices)  # Shape: (ncomb, ntar), where ncomb = ncont ** ntar
-
-#     # Compute linear indices to select elements from tsq.flatten()
-#     # Linear index formula: index = row_index * ntar + column_index
-
-#     # Flatten tsq to a 1D tensor for advanced indexing
-#     tsq_flat = tsq.flatten()
-
-#     # Select the values corresponding to each combination
-#     # selected_values = tsq_flat[combinations * ntar +  torch.arange(ntar,  device=device).unsqueeze(0).expand(combinations.size(0), -1)]
-
-
-#     # Use combinations to index tsq directly, preserving 2D structure
-#     selected_values = tsq[combinations, torch.arange(ntar,  device=device)] # Shape: (ncomb, ntar)
-
-
-
-#     # Compute the squared mean for each combination
-#     collection = (selected_values.mean(dim=1) ** 2)
-#     # collection = selected_values.mean(dim=1)
-
-#     return collection
 
 
 def permute_meansq(tsq, device='mps'):
@@ -351,23 +309,39 @@ def meansq_context(model, context, target, predindex):
 
 
     for i in range(ncont):
-        curqueryother, curkeyother, curvalueother = model.multiheadattn.qkv(context[i].unsqueeze(0))
+        curqueryother, curkeyother, curvalueother = model.multiheadattn.qkv(context[i].unsqueeze(0).unsqueeze(0))
         for j in range(ntar):       
-            curquery, curkeyself, curvalueself = model.multiheadattn.qkv(target[j].unsqueeze(0))
+            curquery, curkeyself, curvalueself = model.multiheadattn.qkv(target[j].unsqueeze(0).unsqueeze(0))
             curselfweight = torch.exp(curquery.matmul(curkeyself.transpose(2, 3)) / math.sqrt(model.dk))
             curotherweight =  torch.exp(curquery.matmul(curkeyother.transpose(2, 3)) / math.sqrt(model.dk))
 
             curwsum = curselfweight + curotherweight
-            transval = ((curvalueself * curselfweight/curwsum + curvalueother * curotherweight/curwsum )).sum(dim = -1).unsqueeze(2).expand(1,model.num_heads, model.ncum,-1)
-            pureval = (curvalueself.sum(dim = -1)).unsqueeze(2).expand(1,model.num_heads, model.ncum,-1)
 
-            # Expand weights to broadcast
-            weights_expanded = model.multiheadattn.cum_weights.unsqueeze(0).unsqueeze(3).expand(1, model.num_heads, model.ncum, 1) # 1 here we sum over dv or it is one
+            # ##### elementwise ######
+            
+            # transval = ((curvalueself * curselfweight/curwsum + curvalueother * curotherweight/curwsum )).sum(dim = -1).unsqueeze(2).expand(1,model.num_heads, model.ncum,-1)
+            # pureval = (curvalueself.sum(dim = -1)).unsqueeze(2).expand(1,model.num_heads, model.ncum,-1)
+
+
+            # # Expand weights to broadcast
+            # weights_expanded = model.multiheadattn.cum_weights.weight.t().unsqueeze(0).unsqueeze(3).expand(1, model.num_heads, model.ncum, 1) # 1 here we sum over dv or it is one
+            # # weights_expanded = model.multiheadattn.cum_weights.unsqueeze(0).unsqueeze(3).expand(1, model.num_heads, model.ncum, 1) # 1 here we sum over dv or it is one
+            
+            # head_outputs_transval = (transval * weights_expanded).sum(dim=1)
+            # head_outputs_curvalueself = (pureval * weights_expanded).sum(dim=1)
 
             
-            head_outputs_transval = (transval * weights_expanded).sum(dim=1)
-            head_outputs_curvalueself = (pureval * weights_expanded).sum(dim=1)
+            ###### matrix multiplication ####
+            transval = ((curvalueself * curselfweight/curwsum + curvalueother * curotherweight/curwsum )).sum(dim = -1)
+            pureval = curvalueself.sum(dim = -1)
 
+
+                    
+            head_outputs_transval = model.multiheadattn.cum_weights(transval.transpose(1,2))
+            head_outputs_curvalueself = model.multiheadattn.cum_weights(pureval.transpose(1,2))
+            
+            
+            
             pred_transval = model.predict(head_outputs_transval)
             pred_curvalueself = model.predict(head_outputs_curvalueself)
     
