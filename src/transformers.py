@@ -239,16 +239,7 @@ class MultiHeadAttention(nn.Module):
         head_output_weighted_sum_pool = pooling_weights.matmul(head_output)
         
         head_outputs_cum = self.cum_weights(head_output_weighted_sum_pool)
-        
-       
-       
-       
-       ###something###
-        # pooling_weights = self.exponential_decay_pred(torch.flip(self.distance_to_end_matrix[:seq_len-1], dims = [0]), self.distance_to_end_weight[0,0])
-   
-        # head_output = ((attention_scores.matmul(V))*pooling_weights.unsqueeze(-1)).transpose(1,2).squeeze(dim=-1)
-         
-        # head_outputs_cum = self.cum_weights(head_output)
+    
          
         return head_outputs_cum
  
@@ -361,9 +352,9 @@ def train_mini_transformer(model, train_loader, eval_loader, optimizer, lambda_l
             
             eval_data = next(iter(eval_loader))
             
-            output_eval = model(eval_data)
+            output_eval = model((eval_data[0][:,:-1,:] , eval_data[1][:,:-1,:]))    
             
-            loss_eval = mini_transformer_loss(output_eval, eval_data[0][:,:-1,:], eval_data[1][:,:-1,:]).item() + l2_penalty_params_except_bias(model, lambda_l2)
+            loss_eval = mini_transformer_loss(output_eval, eval_data[0], eval_data[1]).item() + l2_penalty_params_except_bias(model, lambda_l2)
             
             model.train(True)
         
