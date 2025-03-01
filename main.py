@@ -6,6 +6,8 @@ import time
 import importlib
 import torch.optim as optim
 from torchsummary import summary
+from collections import Counter
+from matplotlib import pyplot as plt
 
 
 from src.data_preparation import SimulatedDataset, collate_function, load_real_data
@@ -32,8 +34,8 @@ device = torch.device("cpu")
 torch.set_printoptions(sci_mode=False, precision=6)
 
 # Set the random seed for reproducibility
-# seed = 42
-seed = torch.initial_seed()
+seed = 151515650
+# seed = torch.initial_seed()
 torch.manual_seed(seed)
 
 
@@ -80,9 +82,24 @@ if __name__ == '__main__':
         predindex = 9
 
     
+    
+    # # Suppose your dataset is called 'dataset' 
+    # # and each item is a 2D Tensor of shape (seq_length, p).
+    # lengths = [item.shape[0] for item in train_dataset]  # extract the sequence length from each item
+
+    # length_counts = Counter(lengths) 
+    
+    # plt.hist(lengths, bins=range(1, max(lengths)+2))
+    # plt.xlabel('Sequence length')
+    # plt.ylabel('Frequency')
+    # plt.title('Distribution of sequence lengths')
+    # plt.show()
+    
+    
     mask_pairwise = create_custom_mask_pair(maxlen, device)
     mask_pred = create_custom_mask_pred(maxlen, device)
-    distance_to_end_matrix = new_weird_oh_my_god_pred_distance_matrix(maxlen, device)#create_distance_to_end_matrix(maxlen, device)
+    # distance_to_end_matrix = new_weird_oh_my_god_pred_distance_matrix(maxlen, device)
+    distance_to_end_matrix = create_distance_to_end_matrix(maxlen, device)
     pairwise_distance_matrix = create_pairwise_distance_matrix(maxlen, device)
 
    
@@ -92,9 +109,14 @@ if __name__ == '__main__':
 
     model = MiniTransformer(p, nheads, dk, dv, ncum, mask_pairwise, pairwise_distance_matrix, distance_to_end_matrix,  device)
 
-    model.apply(init_weights_recursive)
+    # model.apply(init_weights_recursive)
     
-    print_parameters(model)
+    
+    
+    # avepval, stdpval, context, targetall = statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample_size)
+
+    
+   
     
     model.to(device)
 
@@ -103,8 +125,8 @@ if __name__ == '__main__':
     start_time = time.time()
 
     # Define optimizer
-    optimizer = optim.Adam(model.parameters(), lr= learning_rate, weight_decay=lambda_l2)
-    # optimizer = optim.Adam(model.parameters(), lr= learning_rate)
+    # optimizer = optim.Adam(model.parameters(), lr= learning_rate, weight_decay=lambda_l2)
+    optimizer = optim.Adam(model.parameters(), lr= learning_rate)
     
     print("Number of Parameters", transformerFunctions.count_parameters(model))
     
@@ -113,17 +135,24 @@ if __name__ == '__main__':
     # model.multiheadattn.distance_between_two_positions_weight.data.copy_(float(0))
     # model.multiheadattn.distance_to_end_weight.data.copy_(float(0))
     
-
-    sample_flat = [1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1]
-    tensor_data = torch.tensor(sample_flat, dtype=torch.float32)
-
-    # Reshape the tensor to have shape (1, whatever, 10)
-    # The '-1' lets PyTorch automatically infer the correct size for that dimension.
-    sample = tensor_data.view(1, -1, 10)
     
-    padding_sample = torch.tensor([True]).expand_as(sample)
     
-    output = model((sample[:,:-1,:], padding_sample[:,:-1,:]))
+    
+    
+    
+    
+    
+
+    # sample_flat = [1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1]
+    # tensor_data = torch.tensor(sample_flat, dtype=torch.float32)
+
+    # # Reshape the tensor to have shape (1, whatever, 10)
+    # # The '-1' lets PyTorch automatically infer the correct size for that dimension.
+    # sample = tensor_data.view(1, -1, 10)
+    
+    # padding_sample = torch.tensor([True]).expand_as(sample)
+    
+    # output = model((sample[:,:-1,:], padding_sample[:,:-1,:]))
 
     
     run_path = transformerFunctions.train_mini_transformer(model, dataloader, eval_dataloader, optimizer, lambda_l2, EPOCHS, device)
@@ -149,6 +178,10 @@ if __name__ == '__main__':
     # Calculate and print the execution time
     execution_time = end_time - start_time 
     print(f"Execution time: {execution_time:.6f} seconds")
+    
+    
+    
+    
 
     # reload transformer.py
     # importlib.reload(transformerFunctions)
@@ -202,6 +235,9 @@ if __name__ == '__main__':
     print("distance between pair par:", model.multiheadattn.distance_between_two_positions_weight.item(), "\n")
 
 
+
+
+    print_parameters(model)
     
     avepval, stdpval, context, targetall = statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample_size)
     
@@ -210,6 +246,7 @@ if __name__ == '__main__':
     context_predindex_pair_effect = get_context_predindex_pair_effect(model, p, context, targetall, nrepp)
 
     plot_context_predindex_pair_effect(context_predindex_pair_effect, data_str, run_path)
+
 
 
 

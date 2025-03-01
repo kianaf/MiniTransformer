@@ -11,6 +11,7 @@ from matplotlib.colors import LinearSegmentedColormap
 import itertools
 from torch import Tensor
 from typing import List
+import time
 
 def get_context_predindex_pair_effect(model, p, context, targetall, nrepp):
 
@@ -32,17 +33,25 @@ def get_context_predindex_pair_effect(model, p, context, targetall, nrepp):
 
 
 def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample_size):
+    
+
+    seed = int(123456789)
+    torch.manual_seed(seed) 
+    
+    torch.set_grad_enabled(False)  # Disable gradient computation
+    
     # Create context and target as identity tensors of size p x p
     context = torch.eye(p)  # Identity matrix as tensor
     # target = context.clone()  # Clone to create an identical target tensor
 
     # Define avepval tensor to accumulate p-values
-    pval_mat = torch.zeros(p, nrepp)
+    pval_mat = torch.zeros(p, nrepp, requires_grad=False)
 
-    # targetall = all_comb(p)
-    targetall = get_the_existing_comb(train_dataset)
+    targetall = all_comb(p)
+    # targetall = get_the_existing_comb(train_dataset)
     
-    # torch.manual_seed(42)
+   
+    
 
     for repetition in range(nrepp):
 
@@ -51,9 +60,28 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
 
         # Randomly select indices
         
+        
+        
         selected_indexes = torch.randint(0, len(targetall), (target_sample_size,), dtype=torch.int32)
         target_selected_indexes = targetall[selected_indexes]
         target = target_selected_indexes
+        
+        
+#         target_flat = [0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 
+# 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 
+# 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 
+# 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 
+# 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 
+# 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 
+# 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 
+# 0, 0, 1, 0, 1, 0, 1, 0, 0, 1]
+    
+#         # Convert list to a PyTorch tensor
+#         tensor = torch.tensor(target_flat, dtype=torch.float32, requires_grad=False)
+
+#         # Reshape into a list of tensors with 10 elements each
+#         target = [row for row in tensor.view(-1, 10)]  # Reshape into (n, 10) tensor
+    
 
         # Compute the squared mean of differences for the context-target pair
         meansq, tsq = meansq_context(model, context, target, predindex)
@@ -85,6 +113,8 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
         stdpval = pval_mat.std(dim=1)
     else:
         stdpval = torch.zeros(p)
+        
+    torch.set_grad_enabled(True)  # Disable gradient computation
 
     return avepval, stdpval, context, targetall
 
@@ -103,6 +133,7 @@ def all_comb(p):
     
     return combinations[torch.randperm(combinations.shape[0])]  # Shuffle the combinations
 
+
 def get_the_existing_comb(train_dataset):
     
     # Get unique feature vectors
@@ -116,14 +147,18 @@ def calc_pval(meansq, collection):
     pvals = torch.zeros(meansq.shape[0])
     
     for i in range(meansq.shape[0]):
-        abovecount = (collection >= meansq[i]).sum()
-    
+        # Define tolerance
+        atol = 1e-10 # Adjust if needed
+
+        # Perform "approximately greater than or equal" comparison
+        comparison = (collection >= meansq[i]) | torch.isclose(collection, meansq[i], atol=atol)
+        abovecount = comparison.sum()
         pvals[i] = (abovecount/collection.shape[0])
 
     return pvals
 
 
-def permute_meansq(tsq, device='mps'):
+def permute_meansq(tsq, device='cpu'):
     """
     Computes the squared mean of sums over all possible combinations
     where, at each position (target), it selects one element from each column of tsq.
@@ -232,7 +267,7 @@ def permute_meansq_pval_cal(
         """
         # Convert list of tuples to a 2D tensor (batch_size, ncont)
         # Use torch.float32 for precision; adjust dtype if necessary
-        batch_tensor = torch.tensor(batch, dtype=tsq.dtype, device=device)  # Shape: (batch_size, ncont)
+        batch_tensor = torch.tensor(batch, dtype=tsq.dtype, device=device, requires_grad=False)  # Shape: (batch_size, ncont)
         return batch_tensor
 
     # Iterate over the Cartesian product in batches
@@ -265,7 +300,13 @@ def permute_meansq_pval_cal(
 
         # Expand squared_mean_collection to (batch_size, 1)
         # meansq is (ncont,), we need to expand to (1, ncont)
-        comparison = (squared_mean_collection.unsqueeze(1) >= meansq.unsqueeze(0)).float()  # Shape: (batch_size, ncont)
+        
+        # Perform "approximately greater than or equal" comparison
+        atol = 1e-10  # Adjust if needed 
+        comparison = (squared_mean_collection.unsqueeze(1) >= meansq.unsqueeze(0)) | torch.isclose(squared_mean_collection.unsqueeze(1), meansq.unsqueeze(0), atol=atol)
+
+        
+        # comparison = (squared_mean_collection.unsqueeze(1) >= meansq.unsqueeze(0)).float()  # Shape: (batch_size, ncont)
 
         # Sum over the batch dimension to get counts per cont
         pval += comparison.sum(dim=0)  # Shape: (ncont,)
@@ -304,8 +345,8 @@ def meansq_context(model, context, target, predindex):
     ntar = len(target)
 
     # initiate tensors for the meansq and tsq
-    meansq = torch.zeros(ncont)
-    tsq = torch.zeros(ncont , ntar)
+    meansq = torch.zeros(ncont, dtype=torch.float32, requires_grad=False)
+    tsq = torch.zeros(ncont , ntar, dtype=torch.float32, requires_grad=False)
 
 
     for i in range(ncont):
@@ -317,21 +358,6 @@ def meansq_context(model, context, target, predindex):
 
             curwsum = curselfweight + curotherweight
 
-            # ##### elementwise ######
-            
-            # transval = ((curvalueself * curselfweight/curwsum + curvalueother * curotherweight/curwsum )).sum(dim = -1).unsqueeze(2).expand(1,model.num_heads, model.ncum,-1)
-            # pureval = (curvalueself.sum(dim = -1)).unsqueeze(2).expand(1,model.num_heads, model.ncum,-1)
-
-
-            # # Expand weights to broadcast
-            # weights_expanded = model.multiheadattn.cum_weights.weight.t().unsqueeze(0).unsqueeze(3).expand(1, model.num_heads, model.ncum, 1) # 1 here we sum over dv or it is one
-            # # weights_expanded = model.multiheadattn.cum_weights.unsqueeze(0).unsqueeze(3).expand(1, model.num_heads, model.ncum, 1) # 1 here we sum over dv or it is one
-            
-            # head_outputs_transval = (transval * weights_expanded).sum(dim=1)
-            # head_outputs_curvalueself = (pureval * weights_expanded).sum(dim=1)
-
-            
-            ###### matrix multiplication ####
             transval = ((curvalueself * curselfweight/curwsum + curvalueother * curotherweight/curwsum )).sum(dim = -1)
             pureval = curvalueself.sum(dim = -1)
 
@@ -349,6 +375,8 @@ def meansq_context(model, context, target, predindex):
             curdelta = (pred_transval - pred_curvalueself)[:, :, predindex].item()
             
             tsq[i, j] = curdelta #* curdelta
+            
+            
         
         meansq[i] = (tsq[i, :].mean())**2
         # meansq[i] = (tsq[i, :].mean())

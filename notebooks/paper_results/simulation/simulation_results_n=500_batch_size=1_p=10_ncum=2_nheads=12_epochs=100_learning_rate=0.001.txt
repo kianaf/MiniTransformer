@@ -1,0 +1,14 @@
+simulation results n = 500
+baseline repeat: 0.447 ± 0.006
+baseline average loss: 0.213 ± 0.002
+baseline informed loss: 0.206 ± 0.001
+regression loss total: 0.204 ± 0.002
+model loss total: 0.198 ± 0.001
+
+baseline repeat predindex: 0.689 ± 0.006
+baseline average loss predindex: 0.243 ± 0.006
+regression loss predindex: 0.137 ± 0.005
+baseline informed loss predindex: 0.172 ± 0.007
+model loss predindex: 0.075 ± 0.008
+
+

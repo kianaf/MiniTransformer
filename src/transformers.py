@@ -8,7 +8,7 @@ from datetime import datetime
 import wandb
 from torchviz import make_dot
 import matplotlib.pyplot as plt
-
+import time
 
 
 # Create a triangular matrix as per the description
@@ -29,10 +29,6 @@ def create_custom_mask_pred(seq_len, device):
 
 def create_custom_mask_pair(seq_len, device):
     matrix = torch.zeros((seq_len, seq_len), device=device)
-    
-    # Fill the diagonal after the main diagonal with zeros
-    for i in range(seq_len - 1):
-        matrix[i, i+1] = 0
     
     # Fill all the elements after that diagonal with ones
     for i in range(seq_len):
@@ -61,8 +57,8 @@ def create_distance_to_end_matrix(seq_len, device):
     # Fill the diagonal after the main diagonal with zeros
     for i in range(seq_len):
         for j in range(i+1):
-            matrix[i, j] = i - j 
-            # matrix[i, j] = 0
+            #FIXME it can be i -j + 1 with softmax also
+            matrix[i, j] = i - j +1
     
     
     return matrix
@@ -71,12 +67,6 @@ def create_distance_to_end_matrix(seq_len, device):
 
 def new_weird_oh_my_god_pred_distance_matrix(seq_len, device):  
     matrix = torch.arange(seq_len, device=device).expand(seq_len, seq_len)
-    
-    # now mask
-    
-    # for i in range(seq_len):
-    #     for j in range(i+1, seq_len):
-    #         matrix[i, j] = 0
     
     return matrix
     
@@ -113,15 +103,24 @@ def init_weights_recursive(module, method="uniform", init_range=(-0.1, 0.1), ini
 
     initialized.add(id(module))  # Mark this module as initialized
 
-    for name, param in module.named_parameters(recurse = False):
+    for name, param in module.named_parameters():
         if param.requires_grad:
             with torch.no_grad():
                 if method == "uniform":
+                    # torch.random.manual_seed(time.time())
                     torch.nn.init.uniform_(param, *init_range)
+                    
+                    # param.copy_(torch.rand(param.size()) * 0.2 - 0.1)
+                    
                     # if "bias" in name:
-                    #     param.fill_(0.05)
+                    #     param.fill_(0.06)
                     # else:
-                    #     param.fill_(-0.01)
+                    #     param.fill_(0.1)
+                    # if ("W_b_v" in name) & ("weight" in name):
+                    #     param[:, 0].fill_(0.5)
+                    #     param[:, 3].fill_(-0.05)
+                        
+                    
                 elif method == "normal":
                     torch.nn.init.normal_(param, mean=0, std=0.05)
                 elif method == "xavier":
@@ -155,10 +154,14 @@ class MultiHeadAttention(nn.Module):
 
         # This is the weight that is used to change the slope of the effect of the distance to the end
         self.distance_to_end_weight = nn.Parameter(torch.randn(1, 1))
+        # Initialize it between -1 and 1
+        torch.nn.init.uniform_(self.distance_to_end_weight, -0.1, 0.1)
 
 
         # This is the weight that is used to change the slope of the effect of the distance between two positions
         self.distance_between_two_positions_weight = nn.Parameter(torch.randn(1, 1))
+        # Initialize it between -1 and 1
+        torch.nn.init.uniform_(self.distance_between_two_positions_weight, -1, 1)
         
         # Create linear layers for all heads then we can split if we want
         self.W_b_q = nn.Linear(d_model, self.num_heads * self.dk)
@@ -234,7 +237,9 @@ class MultiHeadAttention(nn.Module):
         
         head_output = (attention_scores.matmul(V)).transpose(1,2).squeeze(dim=-1)
         
-        pooling_weights = self.exponential_decay_pred(torch.flip(self.distance_to_end_matrix[:seq_len-1, :seq_len-1], dims = [1]) , self.distance_to_end_weight[0,0])* torch.exp(self.mask_pairwise[:seq_len-1, :seq_len-1])
+        # pooling_weights = self.exponential_decay_pred(torch.flip(self.distance_to_end_matrix[:seq_len-1, :seq_len-1], dims = [1]) , self.distance_to_end_weight[0,0])* torch.exp(self.mask_pairwise[:seq_len-1, :seq_len-1])
+        
+        pooling_weights = self.exponential_decay_pred(self.distance_to_end_matrix[:seq_len-1, :seq_len-1] , self.distance_to_end_weight[0,0])
         
         head_output_weighted_sum_pool = pooling_weights.matmul(head_output)
         
@@ -258,12 +263,12 @@ def l2_penalty_params_except_bias(model, lambda_l2):
 
 def mini_transformer_loss(output, target, padded_masks):    
     
-    # running_loss = torch.sum(((output[:, :-1, :] - (target[:, 2:, :])) * padded_masks[:, 2:, :]) **2) / output.shape[0]
+    # loss = torch.sum(((output[:, :-1, :] - (target[:, 2:, :])) * padded_masks[:, 2:, :]) **2) / output.shape[0]
 
-    running_loss = torch.sum(((output - (target[:, 2:, :])) * padded_masks[:, 2:, :]) **2) / output.shape[0]
+    loss = torch.sum(((output - target[:, 2:, :]) * padded_masks[:, 2:, :]) **2) / output.shape[0]
 
 
-    return running_loss
+    return loss
  
 
 class MiniTransformer(nn.Module):
@@ -278,6 +283,7 @@ class MiniTransformer(nn.Module):
         self.device = device
         self.multiheadattn = MultiHeadAttention(d_model, num_heads, dk, dv, ncum, mask_pairwise, pairwise_distance_matrix,  distance_to_end_matrix,  self.device)
         
+        # self.prediction = nn.Sequential(nn.Linear(self.ncum, self.d_model), nn.Sigmoid())
         self.prediction = nn.Linear(self.ncum, self.d_model)
 
     def predict(self, out):
@@ -323,12 +329,15 @@ def train_mini_transformer_one_epoch(model, train_loader, optimizer, lambda_l2, 
         # tb_writer.close()
 
         
-        loss = mini_transformer_loss(output, data[0], data[1]) + l2_penalty_params_except_bias(model, lambda_l2)
-        running_loss += loss.item()
+        sum_square_error = mini_transformer_loss(output, data[0], data[1])
+        penalty = l2_penalty_params_except_bias(model, lambda_l2)
+        loss = sum_square_error + penalty
         loss.backward()
         optimizer.step()
+        running_loss += loss.detach().cpu().item() # without .cpu Might crash if loss is on GPU/MPS
+
         
-    return running_loss/len(train_loader)
+    return running_loss/len(train_loader), penalty
 
 def train_mini_transformer(model, train_loader, eval_loader, optimizer, lambda_l2, EPOCHS, device):
     # Initializing in a separate cell so we can easily add more epochs to the same run
@@ -343,7 +352,7 @@ def train_mini_transformer(model, train_loader, eval_loader, optimizer, lambda_l
     for epoch_number in range(EPOCHS):
         
         
-        avg_loss = train_mini_transformer_one_epoch(model, train_loader, optimizer, lambda_l2, device)
+        avg_loss, penalty  = train_mini_transformer_one_epoch(model, train_loader, optimizer, lambda_l2, device)
 
         
         if eval_loader is not None:
@@ -354,16 +363,18 @@ def train_mini_transformer(model, train_loader, eval_loader, optimizer, lambda_l
             
             output_eval = model((eval_data[0][:,:-1,:] , eval_data[1][:,:-1,:]))    
             
-            loss_eval = mini_transformer_loss(output_eval, eval_data[0], eval_data[1]).item() + l2_penalty_params_except_bias(model, lambda_l2)
+            sum_square_error = mini_transformer_loss(output_eval, eval_data[0], eval_data[1]).detach().cpu().item()
+            penalty_eval = l2_penalty_params_except_bias(model, lambda_l2)
+            loss_eval = sum_square_error #+ penalty_eval
             
             model.train(True)
         
         
         if epoch_number % 10 == 0:
             print('EPOCH {}:'.format(epoch_number + 1))
-            print('avg_loss: {:.5f}'.format(avg_loss))
+            print('avg_loss:     {:.5f}'.format(avg_loss), 'penalty    : {:.5f}'.format(penalty))
             if eval_loader is not None:
-                print('avg_loss_val: {:.5f}'.format(loss_eval))
+                print('avg_loss_val: {:.5f}'.format(loss_eval), 'penalty_val: {:.5f}'.format(penalty_eval))
 
         # # Log model parameters (weights and biases) after every epoch
         # for name, param in model.named_parameters():
@@ -408,9 +419,10 @@ def print_parameters(model):
 
             print("\t K weights: ", model.multiheadattn.W_b_k.weight[head*model.dk + dim, :].data, "\t b: ", model.multiheadattn.W_b_k.bias[head*model.dk + dim].data, "\n")
 
-    for dim in range(model.dv):
+        for dim in range(model.dv):
             print("\t V weights: ", model.multiheadattn.W_b_v.weight[head*model.dv + dim, :].data, "\t b: ", model.multiheadattn.W_b_v.bias[head*model.dv + dim].data, "\n\n")
-            print("\t cum weights: ", model.multiheadattn.cum_weights.weight[:, head].data, "\n\n")
+        
+        print("\t cum weights: ", model.multiheadattn.cum_weights.weight[:, head].data, "\n\n")
 
     print("Prediction weights: \n", model.prediction.weight.data, "\n")
 
