@@ -5,21 +5,29 @@ import statsmodels.api as sm
 import numpy as np
 
 def calculate_bench1_loss(train_data, eval_data, predindex):
+    """Calculate the loss for benchmark model 1 (global mean baseline).
+    
+    This benchmark model predicts future values by using the global mean across all
+    timepoints and sequences in the training data. It serves as a simple baseline
+    that doesn't consider temporal dependencies.
+    
+    Args:
+        train_data (list[torch.Tensor]): List of training sequences, each of shape 
+            (seq_len, num_features)
+        eval_data (list[torch.Tensor]): List of evaluation sequences to test on
+        predindex (int): Index of the feature to focus on for specific predictions
+    
+    Returns:
+        tuple: Contains:
+            - dimave (torch.Tensor): Global mean values for each feature
+            - benchloss (float): Average MSE across all features
+            - benchloss_predindex (float): MSE for the specific feature at predindex
     """
-    Calculate the loss of the benchmark 1 model.
-    averaging over all timepoints of all the sequences
-    """
-
     p = train_data[0].shape[1]
-
     predn = len(eval_data)
-
-    #This is for baseline1: Bench1 which averages over all timepoints of all the sequences
     
     train_data_plain = torch.cat([train_data[i] for i in range(len(train_data))], dim=0)
     dimave = torch.mean(train_data_plain, dim=0)
-    
-
 
     benchdelta = 0.0
     benchloss = 0.0
@@ -32,54 +40,48 @@ def calculate_bench1_loss(train_data, eval_data, predindex):
 
     benchloss /= predn
     benchloss_predindex /= predn
-    
 
     return dimave, benchloss, benchloss_predindex
 
 
-
 def calculate_bench2_loss(train_data, eval_data, dimave):
+    """Calculate the loss for benchmark model 2 (conditional probability baseline).
+    
+    This benchmark predicts pos3 based on the conditional probability given pos2's value,
+    and uses global means for other features. It captures simple conditional dependencies
+    between specific positions.
+    
+    Args:
+        train_data (list[torch.Tensor]): List of training sequences
+        eval_data (list[torch.Tensor]): List of evaluation sequences
+        dimave (torch.Tensor): Global mean values for each feature from bench1
+    
+    Returns:
+        tuple: Contains:
+            - bench2loss (float): Average MSE across all features
+            - bench2loss_predindex (float): MSE for position 3 specifically
     """
-    Calculate the loss of the benchmark 2 model.
-    Looking at pos2, and based on the probability of pos3 given pos2, predict pos3
-    """
-
     p = train_data[0].shape[1]
-
     predn = len(eval_data)
-
     n = len(train_data)
 
-    #This is for baseline2: Bench2 which averages over all timepoints of all the sequences
-    
+    pos1, pos2, pos3 = 0, 1, 2
+    pos2count1, pos2count0 = 0, 0
+    pos3ave1, pos3ave0 = 0.0, 0.0
 
-
-
-    pos1 = 0
-    pos2 = 1
-    pos3 = 2
-
-    pos2count1 = 0
-    pos2count0 = 0
-    pos3ave1 = 0.0
-    pos3ave0 = 0.0
-
+    # Calculate conditional probabilities
     for i in range(n):
-
         curn = train_data[i].shape[0] 
-
         for j in range(curn-1):
             if (train_data[i][j, pos2] == 1.0):
-                pos2count1+= 1
+                pos2count1 += 1
                 pos3ave1 += train_data[i][j+1, pos3]
             else:
-                pos2count0+= 1
+                pos2count0 += 1
                 pos3ave0 += train_data[i][j+1, pos3]
 
     pos3ave1 = pos3ave1/pos2count1
     pos3ave0 = pos3ave0/pos2count0
-        
-
 
     bench2pred = 0.0
     bench2delta = 0.0
@@ -87,16 +89,12 @@ def calculate_bench2_loss(train_data, eval_data, dimave):
     bench2loss_predindex = 0.0
 
     for i in range(predn):
-        # curn = eval_data[i].shape[0]
         for j in range(p):
             if j == pos3:
                 if eval_data[i][-2, pos3] == 1.0:   
                     bench2pred = 0.0
                 else:
-                    if eval_data[i][-2, pos2] == 1.0:
-                        bench2pred = pos3ave1
-                    else:
-                        bench2pred = pos3ave0
+                    bench2pred = pos3ave1 if eval_data[i][-2, pos2] == 1.0 else pos3ave0
             else:
                 bench2pred = dimave[j]
 
@@ -104,7 +102,6 @@ def calculate_bench2_loss(train_data, eval_data, dimave):
             bench2loss += bench2delta * bench2delta
             if j == pos3:
                 bench2loss_predindex += (bench2delta * bench2delta)
-            
 
     bench2loss /= predn*p
     bench2loss_predindex /= predn
@@ -113,13 +110,21 @@ def calculate_bench2_loss(train_data, eval_data, dimave):
 
 
 def calculate_repeat_loss(eval_data, predindex):
-    """
-    Calculate the loss of the benchmark 3 model.
-    Repeat the last timepoint of each sequence
-    """
+    """Calculate the loss for benchmark model 3 (repeat last value baseline).
     
+    This benchmark simply predicts that each feature will maintain its last observed value.
+    It serves as a persistence baseline that assumes no change between timesteps.
+    
+    Args:
+        eval_data (list[torch.Tensor]): List of evaluation sequences
+        predindex (int): Index of the feature to focus on for specific predictions
+    
+    Returns:
+        tuple: Contains:
+            - bench3loss (float): Average MSE across all features
+            - bench3_loss_predindex (float): MSE for the specific feature at predindex
+    """
     p = eval_data[0].shape[1]
-
     predn = len(eval_data)
     size = predn
 
@@ -128,13 +133,12 @@ def calculate_repeat_loss(eval_data, predindex):
 
     for i in range(predn):
         if eval_data[i].shape[1] < 3:
-                size -= 1
-                continue
+            size -= 1
+            continue
         else:
             bench3delta = eval_data[i][-1, :] - eval_data[i][-2, :]
             bench3_loss_predindex += torch.mean(bench3delta[predindex]*bench3delta[predindex]).item()
             bench3loss += torch.mean(bench3delta * bench3delta).item()
-            
 
     bench3loss /= predn 
     bench3_loss_predindex /= predn
@@ -143,13 +147,23 @@ def calculate_repeat_loss(eval_data, predindex):
 
 
 def calculate_regression_loss(train_data, eval_data, predindex):
-    """
-    Calculate the loss of the regression model.
-    """
+    """Calculate the loss for a GLM regression baseline model.
     
-    # Example: train_data and eval_data have shapes (num_samples, num_time_points, num_features)
-
-    num_features = train_data[0].shape[1]  # Number of variables
+    Fits separate Gaussian GLM models for each feature using all other features at t-1
+    as predictors. This serves as a linear modeling baseline that captures basic
+    temporal dependencies.
+    
+    Args:
+        train_data (list[torch.Tensor]): List of training sequences
+        eval_data (list[torch.Tensor]): List of evaluation sequences
+        predindex (int): Index of the feature to focus on for specific predictions
+    
+    Returns:
+        tuple: Contains:
+            - pred_feature_mse (float): MSE for the specific feature at predindex
+            - overall_mse (float): Average MSE across all features
+    """
+    num_features = train_data[0].shape[1]
     models = []
     train_mses = []
     eval_mses = []
@@ -159,13 +173,12 @@ def calculate_regression_loss(train_data, eval_data, predindex):
         train_features = []
         train_targets = []
         
-        # Loop over sequences to gather data for all time points except the first
+        # Gather training data
         for seq in train_data:
-            for t in range(2, seq.shape[0] - 1):  # Start from the second time point
-                train_features.append(seq[t - 1, :])  # Use all variables at t-1
-                train_targets.append(seq[t, feature_idx])  # Target: feature_idx at time t
+            for t in range(2, seq.shape[0] - 1):
+                train_features.append(seq[t - 1, :])
+                train_targets.append(seq[t, feature_idx])
 
-        # Convert to NumPy arrays
         train_features = np.stack(train_features)
         train_targets = np.stack(train_targets)
 
@@ -178,11 +191,9 @@ def calculate_regression_loss(train_data, eval_data, predindex):
 
         # Calculate training MSE
         train_predictions = model.predict(train_features)
-        train_mse = np.mean((train_predictions - train_targets) ** 2)
-        train_mses.append(train_mse)
+        train_mses.append(np.mean((train_predictions - train_targets) ** 2))
 
-        # Prepare evaluation data
-         # Prepare evaluation data (only for the last time point)
+        # Prepare evaluation data (only for the last time point)
         eval_features = []
         eval_targets = []
 
@@ -216,8 +227,20 @@ def calculate_regression_loss(train_data, eval_data, predindex):
 
 
 def evaluate_mini_transformer(eval_data, model, predindex):
-    """
-    Evaluate the MiniTransformer model on the evaluation data.
+    """Evaluates a MiniTransformer model on evaluation data.
+    
+    Computes both the MSE for a specific prediction index and the overall MSE across
+    all features. The evaluation is done on the last time point prediction only.
+
+    Args:
+        eval_data (DataLoader): DataLoader containing evaluation batches
+        model (MiniTransformer): The transformer model to evaluate
+        predindex (int): Index of the specific feature to evaluate
+
+    Returns:
+        tuple: (specific_mse, overall_mse)
+            - specific_mse (float): MSE for the specified prediction index
+            - overall_mse (float): Average MSE across all features
     """
     model.eval()
     loss = 0

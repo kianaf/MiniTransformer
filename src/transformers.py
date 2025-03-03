@@ -11,8 +11,19 @@ import matplotlib.pyplot as plt
 import time
 
 
-# Create a triangular matrix as per the description
 def create_custom_mask_pred(seq_len, device):
+    """Creates a custom prediction mask for transformer attention.
+    
+    Generates a triangular mask matrix where elements after the first diagonal are masked
+    with a large negative value (-1e9) to prevent attention to future positions.
+    
+    Args:
+        seq_len (int): Length of the sequence.
+        device (torch.device): Device to create the mask on (CPU/GPU).
+    
+    Returns:
+        torch.Tensor: A (seq_len, seq_len) mask matrix where masked positions contain -1e9.
+    """
     matrix = torch.zeros((seq_len, seq_len), device=device)
     
     # Fill the diagonal after the main diagonal with zeros
@@ -28,6 +39,18 @@ def create_custom_mask_pred(seq_len, device):
 
 
 def create_custom_mask_pair(seq_len, device):
+    """Creates a custom pairwise mask for transformer attention.
+    
+    Generates an upper triangular mask matrix where elements above the diagonal are masked
+    with a large negative value (-1e9) to prevent attention to future positions.
+    
+    Args:
+        seq_len (int): Length of the sequence.
+        device (torch.device): Device to create the mask on (CPU/GPU).
+    
+    Returns:
+        torch.Tensor: A (seq_len, seq_len) mask matrix where masked positions contain -1e9.
+    """
     matrix = torch.zeros((seq_len, seq_len), device=device)
     
     # Fill all the elements after that diagonal with ones
@@ -38,26 +61,25 @@ def create_custom_mask_pair(seq_len, device):
     return matrix * -1e9
 
 
-
-# def create_distance_to_end_matrix(seq_len, device):
-#     matrix = torch.ones((seq_len, seq_len),  device=device) * 1e9
-    
-#     # Fill the diagonal after the main diagonal with zeros
-#     for i in range(seq_len - 1):
-#         for j in range(i+2):
-#             matrix[i, j] = i +1 - j
-    
-#     return matrix
-
-
-
 def create_distance_to_end_matrix(seq_len, device):
+    """Creates a matrix representing distances to the end of sequences.
+    
+    For each position (i,j) in the matrix, calculates the distance from position i
+    to position j, with special handling for positions beyond i+1.
+    
+    Args:
+        seq_len (int): Length of the sequence.
+        device (torch.device): Device to create the matrix on (CPU/GPU).
+    
+    Returns:
+        torch.Tensor: A (seq_len, seq_len) matrix containing distances, with positions
+                     beyond i+1 filled with 1e9.
+    """
     matrix = torch.ones((seq_len, seq_len),  device=device) * 1e9
     
     # Fill the diagonal after the main diagonal with zeros
     for i in range(seq_len):
         for j in range(i+1):
-            #FIXME it can be i -j + 1 with softmax also
             matrix[i, j] = i - j +1
     
     
@@ -73,14 +95,19 @@ def new_weird_oh_my_god_pred_distance_matrix(seq_len, device):
 
 
 def create_pairwise_distance_matrix(seq_len, device):
+    """Creates a matrix of pairwise distances between sequence positions.
     
-    # dist_matrix = torch.zeros((seq_len, seq_len), device=device)
-    # Create an index matrix using torch.arange
+    Computes the absolute difference |i - j| between all pairs of positions in the sequence.
+    
+    Args:
+        seq_len (int): Length of the sequence.
+        device (torch.device): Device to create the matrix on (CPU/GPU).
+    
+    Returns:
+        torch.Tensor: A (seq_len, seq_len) matrix containing absolute distances between positions.
+    """
     indices = torch.arange(seq_len, device=device)
-
-    # Create the matrix with |i - j|
     dist_matrix = torch.abs(indices[:, None] - indices[None, :])
-    
     return dist_matrix
 
 
@@ -135,6 +162,23 @@ def init_weights_recursive(module, method="uniform", init_range=(-0.1, 0.1), ini
         init_weights_recursive(child, method, init_range, initialized)
 
 class MultiHeadAttention(nn.Module):
+    """Multi-head attention mechanism with custom distance-based attention weights.
+    
+    This implementation extends the standard transformer multi-head attention by incorporating
+    distance-based attention weights and cumulative attention mechanisms. It includes both
+    pairwise distance considerations and distance-to-end weighting in the attention computation.
+    
+    Args:
+        d_model (int): The dimension of the model's hidden state
+        num_heads (int): Number of attention heads
+        dk (int): Dimension of the key vectors
+        dv (int): Dimension of the value vectors
+        ncum (int): Number of cumulative attention outputs
+        mask_pairwise (torch.Tensor): Mask for pairwise attention
+        pairwise_distance_matrix (torch.Tensor): Matrix of pairwise distances between positions
+        distance_to_end_matrix (torch.Tensor): Matrix of distances to sequence end
+        device (torch.device): Device to use for computations
+    """
     def __init__(self, d_model, num_heads, dk, dv, ncum, mask_pairwise, pairwise_distance_matrix,  distance_to_end_matrix, device):
         super().__init__()
         
@@ -144,26 +188,21 @@ class MultiHeadAttention(nn.Module):
         self.ncum = ncum
         self.dk = dk
         self.dv = dv
-        # self.cum_weights = nn.Parameter(torch.randn(num_heads, ncum))
         self.cum_weights = nn.Linear(num_heads, ncum, bias = False)
         self.mask_pairwise = mask_pairwise
 
         self.pairwise_distance_matrix = pairwise_distance_matrix
         self.distance_to_end_matrix = distance_to_end_matrix
 
-
-        # This is the weight that is used to change the slope of the effect of the distance to the end
+        # Weight for adjusting the effect of distance to the end
         self.distance_to_end_weight = nn.Parameter(torch.randn(1, 1))
-        # Initialize it between -1 and 1
         torch.nn.init.uniform_(self.distance_to_end_weight, -0.1, 0.1)
 
-
-        # This is the weight that is used to change the slope of the effect of the distance between two positions
+        # Weight for adjusting the effect of pairwise distances
         self.distance_between_two_positions_weight = nn.Parameter(torch.randn(1, 1))
-        # Initialize it between -1 and 1
         torch.nn.init.uniform_(self.distance_between_two_positions_weight, -1, 1)
         
-        # Create linear layers for all heads then we can split if we want
+        # Linear projections for Q, K, V
         self.W_b_q = nn.Linear(d_model, self.num_heads * self.dk)
         self.W_b_k = nn.Linear(d_model, self.num_heads * self.dk)
         self.W_b_v = nn.Linear(d_model, self.num_heads * self.dv)
@@ -174,82 +213,149 @@ class MultiHeadAttention(nn.Module):
 
     
     def exponential_decay_pred(self, dist, weight):
+        """Applies exponential decay to prediction distances.
+        
+        Args:
+            dist (torch.Tensor): Distance matrix
+            weight (float): Weight parameter for scaling the decay
+            
+        Returns:
+            torch.Tensor: Exponentially decayed distances
+        """
         # return torch.softmax((-dist * torch.exp(weight)**5), dim = -1)
         return torch.exp((-dist * torch.exp(weight))**5)
-        # return torch.exp((-dist * torch.exp(torch.tensor([0.5])))**5)
-
 
     def exponential_decay_pair(self, dist, weight):
+        """Applies exponential decay to pairwise distances.
+        
+        Args:
+            dist (torch.Tensor): Distance matrix
+            weight (float): Weight parameter for scaling the decay
+            
+        Returns:
+            torch.Tensor: Exponentially decayed distances
+        """
         return (-dist * torch.exp(weight))**5
 
-
     def activation(self, projection_layer, x):
+        """Applies activation function to projected values.
+        
+        Args:
+            projection_layer (nn.Module): Linear projection layer
+            x (torch.Tensor): Input tensor
+            
+        Returns:
+            torch.Tensor: Activated projection
+        """
         return self.act_function(projection_layer(x))
 
     def split_heads(self, x, seq_len, dim_head):
-        # Reshape the input to have num_heads for multi-head attention
+        """Splits the input tensor into multiple attention heads.
+        
+        Args:
+            x (torch.Tensor): Input tensor of shape [batch_size, seq_len, num_heads * dim_head]
+            seq_len (int): Length of the sequence
+            dim_head (int): Dimension of each head
+            
+        Returns:
+            torch.Tensor: Reshaped tensor of shape [batch_size, num_heads, seq_len, dim_head]
+        """
         return x.view(x.shape[0], seq_len, self.num_heads, dim_head).transpose(1, 2)
 
     def qkv(self, x):
+        """Computes query, key, and value projections and splits them into heads.
         
+        Args:
+            x (torch.Tensor): Input tensor of shape [batch_size, seq_len, d_model]
+            
+        Returns:
+            tuple: (Q, K, V) tensors after projection and head splitting
+        """
         seq_len = x.shape[1]
 
         Q = self.activation(self.W_b_q, x)
         K = self.activation(self.W_b_k, x)
         V = self.activation(self.W_b_v, x)
 
-
-        # split heads
         Q = self.split_heads(Q, seq_len, self.dk)
         K = self.split_heads(K, seq_len, self.dk)
         V = self.split_heads(V, seq_len, self.dv)
 
         return Q, K, V
-    
-        
+
     def get_attention(self, x, dist_weight, mask=None, padding_mask=None):
+        """Computes attention scores with distance weighting and masking.
         
+        Args:
+            x (torch.Tensor): Input tensor
+            dist_weight (torch.Tensor): Distance-based attention weights
+            mask (torch.Tensor, optional): Attention mask
+            padding_mask (torch.Tensor, optional): Mask for padded positions
+            
+        Returns:
+            tuple: (attention_scores, V) - Computed attention scores and value tensors
+        """
         batch_size, seq_len, _ = x.shape
 
         Q, K, V = self.qkv(x)
         
         scores = Q.matmul(K.transpose(2, 3)) / math.sqrt(self.dk)
-
         scores = scores.masked_fill((padding_mask[:, :, 0].unsqueeze(1).unsqueeze(-1).expand(batch_size, self.num_heads, seq_len, seq_len)) !=True, -1e9)
-
         attention_scores = torch.nn.functional.softmax((scores + dist_weight + mask)[:, :, 1:seq_len, :seq_len], dim=-1)
         
         return attention_scores, V
-    
-    
-    def forward(self, data):
 
-        # print("X shape ", x.shape)
-        x = data[0]
+    def forward(self, data):
+        """Forward pass of the multi-head attention module.
         
+        Args:
+            data (tuple): Tuple containing:
+                - x (torch.Tensor): Input tensor of shape [batch_size, seq_len, d_model]
+                - padding_mask (torch.Tensor): Mask for padded positions
+                
+        Returns:
+            torch.Tensor: Processed attention outputs after cumulative weighting
+        """
+        x = data[0]
         padding_mask = data[1]
         
         batch_size, seq_len, _ = x.size()
         
         mask_pairwise = self.mask_pairwise[:seq_len, :seq_len].expand(batch_size, self.num_heads, seq_len, seq_len)
-
-        attention_scores, V = self.get_attention(x, self.exponential_decay_pair(self.pairwise_distance_matrix[:seq_len, :seq_len], self.distance_between_two_positions_weight[0,0]).expand(batch_size, self.num_heads, seq_len, seq_len), mask_pairwise, padding_mask)
+        attention_scores, V = self.get_attention(
+            x, 
+            self.exponential_decay_pair(
+                self.pairwise_distance_matrix[:seq_len, :seq_len], 
+                self.distance_between_two_positions_weight[0,0]
+            ).expand(batch_size, self.num_heads, seq_len, seq_len),
+            mask_pairwise, 
+            padding_mask
+        )
         
         head_output = (attention_scores.matmul(V)).transpose(1,2).squeeze(dim=-1)
         
         # pooling_weights = self.exponential_decay_pred(torch.flip(self.distance_to_end_matrix[:seq_len-1, :seq_len-1], dims = [1]) , self.distance_to_end_weight[0,0])* torch.exp(self.mask_pairwise[:seq_len-1, :seq_len-1])
         
-        pooling_weights = self.exponential_decay_pred(self.distance_to_end_matrix[:seq_len-1, :seq_len-1] , self.distance_to_end_weight[0,0])
-        
+        pooling_weights = self.exponential_decay_pred(
+            self.distance_to_end_matrix[:seq_len-1, :seq_len-1],
+            self.distance_to_end_weight[0,0]
+        )
         head_output_weighted_sum_pool = pooling_weights.matmul(head_output)
-        
         head_outputs_cum = self.cum_weights(head_output_weighted_sum_pool)
     
-         
         return head_outputs_cum
- 
+
 
 def l2_penalty_params_except_bias(model, lambda_l2):
+    """Computes L2 regularization penalty for all model parameters except biases.
+    
+    Args:
+        model (nn.Module): The model whose parameters to compute L2 penalty for
+        lambda_l2 (float): L2 regularization coefficient
+        
+    Returns:
+        torch.Tensor: The computed L2 penalty
+    """
     # Get only the weight parameters (exclude biases)
     penalty = 0.0
     for name, param in model.named_parameters(): 
@@ -286,19 +392,13 @@ class MiniTransformer(nn.Module):
         # self.prediction = nn.Sequential(nn.Linear(self.ncum, self.d_model), nn.Sigmoid())
         self.prediction = nn.Linear(self.ncum, self.d_model)
 
-    def predict(self, out):
-
-        pred = self.prediction(out)
-        
-        return pred
-
         
     def forward(self, data):
         x = data[0]
         padded_masks = data[1]
         out = self.multiheadattn(data)  # The last row is the label
 
-        pred = self.predict(out) #* padded_masks
+        pred = self.prediction(out) #* padded_masks
 
         return pred
 
@@ -407,7 +507,6 @@ def train_mini_transformer(model, train_loader, eval_loader, optimizer, lambda_l
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
-
 
 
 def print_parameters(model):

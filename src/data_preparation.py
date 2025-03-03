@@ -1,15 +1,32 @@
 import torch
 from torch.utils.data import Dataset
-
-import torch
-from torch.utils.data import Dataset
-import random
-from torch.nn.utils.rnn import pad_sequence, pad_packed_sequence
+from torch.nn.utils.rnn import pad_sequence
 import pandas as pd
-import time
 
 class SimulatedDataset(Dataset):
     def __init__(self, n, p=3, pos1=0, pos2=1, pos3=2, maxlen=4, device=None):
+        """A PyTorch Dataset that generates simulated sequential data with specific patterns.
+
+        This dataset generates sequences of binary (0/1) values with specific dependencies between
+        positions. The sequences have variable lengths up to a maximum length, where certain patterns
+        are enforced based on the positions pos1, pos2, and pos3.
+
+        Args:
+            n (int): Number of sequences to generate in the dataset.
+            p (int, optional): Number of features (dimensions) in each timestep. Defaults to 3.
+            pos1 (int, optional): Index for the first position of interest. Defaults to 0.
+            pos2 (int, optional): Index for the second position of interest. Defaults to 1.
+            pos3 (int, optional): Index for the third position of interest. Defaults to 2.
+            maxlen (int, optional): Maximum sequence length for each sample. Defaults to 4.
+            device (torch.device, optional): Device to store the data on (CPU/GPU). Defaults to None.
+
+        The dataset generates sequences where:
+        - Each position has a 0.7 probability of being 1 (except pos3)
+        - pos3 has special conditions:
+          * It has a 0.1 probability of being 1 when both pos1 and pos2 have been seen as 1 in previous timesteps
+          * The state of having "seen" pos1 or pos2 resets whenever pos3 is 1
+        - Sequences have variable lengths (2 to maxlen) controlled by random termination
+        """
         self.n = n        # Number of data points
         self.p = p        # Number of features (dimensions)
         self.pos1 = pos1  # Index for pos1 condition
@@ -32,10 +49,15 @@ class SimulatedDataset(Dataset):
         return random_int / RAND_MAX
 
     def generate_data(self):
+        """
+        Generates simulated sequential data with specific patterns.
+
+        This function generates a dataset of sequences with binary values (0/1) based on
+        specific conditions for different positions. The sequences have variable lengths
+        up to a maximum length, controlled by random termination.
+        """
         
         # torch.manual_seed(int(time.time()))
-
-
         
         input_data = []
 
@@ -97,6 +119,29 @@ class SimulatedDataset(Dataset):
     
 # Custom collate function to pad sequences and create a padding mask
 def collate_function(batch):
+    """Custom collate function for padding variable length sequences in a batch.
+
+    This function is designed to be used with PyTorch's DataLoader to handle batches
+    of variable length sequences. It performs the following steps:
+    1. Pads all sequences to the length of the longest sequence in the batch
+    2. Creates a boolean mask indicating valid (non-padding) positions
+    3. Replaces temporary padding values (-1) with zeros
+
+    Args:
+        batch (List[torch.Tensor]): A list of variable length 2D tensors, where each tensor
+            has shape (sequence_length, feature_dimension)
+
+    Returns:
+        tuple: A tuple containing:
+            - padded_sequences (torch.Tensor): Padded sequences with shape 
+              (batch_size, max_sequence_length, feature_dimension)
+            - mask (torch.Tensor): Boolean mask with shape (batch_size, max_sequence_length, feature_dimension)
+              where True indicates actual data and False indicates padding
+
+    Note:
+        The padding process uses -1 as a temporary padding value to create the mask,
+        then replaces these values with 0 in the final output.
+    """
     # Step 1: Pad sequences with a temporary value
     padded_sequences = pad_sequence(batch, batch_first=True, padding_value=-1)
 
@@ -110,6 +155,13 @@ def collate_function(batch):
 
 
 def load_real_data(data_str):
+    """
+    Loads real data from a CSV file and returns a list of tensors.
+
+    Args:
+        data_str (str): The string identifier for the data file.
+
+    """
 
     maxlen = 0 
     # Step 1: Load the CSV file into a DataFrame

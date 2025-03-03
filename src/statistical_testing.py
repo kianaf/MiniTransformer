@@ -14,6 +14,24 @@ from typing import List
 import time
 
 def get_context_predindex_pair_effect(model, p, context, targetall, nrepp):
+    
+    """Get the effect of context-predindex pairs on model predictions.
+    
+    This function evaluates how different context features influence predictions
+    for each target feature index. It runs multiple repetitions and averages
+    the results to get stable estimates of the context-predindex pair effects.
+    
+    Args:
+        model (nn.Module): The trained model to evaluate
+        p (int): Number of features/dimensions in the data
+        context (torch.Tensor): Context sequences to test
+        targetall (list[torch.Tensor]): List of target sequences
+        nrepp (int): Number of repetitions to run
+        
+    Returns:
+        torch.Tensor: Matrix of shape (p, p) containing the averaged effects
+            of each context feature on each prediction index
+    """
 
     context_predindex_pair_effect = torch.zeros((p, p))  # Initialize a 2D array with zeros
 
@@ -33,6 +51,25 @@ def get_context_predindex_pair_effect(model, p, context, targetall, nrepp):
 
 
 def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample_size):
+    
+    """Perform statistical testing to evaluate the significance of feature interactions.
+    
+    This function conducts statistical tests to analyze how different features interact
+    and influence predictions in the model. It uses a combination of context and target
+    sequences to measure these effects.
+    
+    Args:
+        model (nn.Module): The trained model to evaluate
+        train_dataset (list[torch.Tensor]): Training data sequences used for sampling
+        p (int): Number of features/dimensions in the data
+        predindex (int): Index of the target feature for predictions
+        nrepp (int): Number of repetitions for the statistical test
+        target_sample_size (int): Number of target sequences to sample
+    
+    Returns:
+        torch.Tensor: Matrix of p-values indicating significance of feature interactions,
+            with shape (p, nrepp)
+    """
     
 
     seed = int(123456789)
@@ -122,7 +159,17 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
 
 def all_comb(p):
     
-    # torch.manual_seed(42)
+    """Generate all possible binary combinations for p features.
+    
+    Creates a tensor containing all possible binary combinations (0s and 1s) for p features,
+    then randomly shuffles the order of these combinations.
+    
+    Args:
+        p (int): Number of features/dimensions to generate combinations for
+        
+    Returns:
+        torch.Tensor: Shuffled tensor of shape (2^p, p) containing all binary combinations
+    """
     # Generate all combinations of binary numbers from 0 to 2^p - 1
     # This will be the range of numbers represented in binary
     binary_range = torch.arange(2 ** p)
@@ -135,6 +182,22 @@ def all_comb(p):
 
 
 def get_the_existing_comb(train_dataset):
+    """Get the existing feature combinations from the training dataset.
+    
+    Extracts all unique feature vectors that appear in the training sequences and
+    returns them in random order. This is useful for analyzing which feature
+    combinations actually occur in the data rather than considering all possible
+    theoretical combinations.
+    
+    Args:
+        train_dataset (list[torch.Tensor]): List of training sequences, where each
+            sequence is a tensor of shape (seq_len, num_features)
+    
+    Returns:
+        torch.Tensor: Randomly permuted tensor containing all unique feature 
+            combinations found in the training data
+    """
+    
     
     # Get unique feature vectors
     unique_combs = torch.unique(torch.cat(train_dataset), dim=0)
@@ -143,6 +206,20 @@ def get_the_existing_comb(train_dataset):
 
 
 def calc_pval(meansq, collection):
+    """Calculate p-values by comparing a test statistic against a collection of values.
+    
+    For each value in meansq, computes the proportion of values in collection that are 
+    greater than or approximately equal to it. This gives an empirical p-value 
+    representing how extreme each test statistic is compared to the null distribution.
+
+    Args:
+        meansq (torch.Tensor): Test statistics to evaluate, shape (ncont,)
+        collection (torch.Tensor): Collection of values to compare against, shape (ncomb,)
+            representing the null distribution
+    
+    Returns:
+        torch.Tensor: P-values for each test statistic in meansq, shape (ncont,)
+    """
 
     pvals = torch.zeros(meansq.shape[0])
     
@@ -368,8 +445,8 @@ def meansq_context(model, context, target, predindex):
             
             
             
-            pred_transval = model.predict(head_outputs_transval)
-            pred_curvalueself = model.predict(head_outputs_curvalueself)
+            pred_transval = model.prediction(head_outputs_transval)
+            pred_curvalueself = model.prediction(head_outputs_curvalueself)
     
 
             curdelta = (pred_transval - pred_curvalueself)[:, :, predindex].item()
