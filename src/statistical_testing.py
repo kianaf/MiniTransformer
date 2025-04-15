@@ -13,7 +13,7 @@ from torch import Tensor
 from typing import List
 import time
 
-def get_context_predindex_pair_effect(model, p, context, targetall, nrepp):
+def get_context_predindex_pair_effect(model, p, context, targetall):
     
     """Get the effect of context-predindex pairs on model predictions.
     
@@ -26,7 +26,6 @@ def get_context_predindex_pair_effect(model, p, context, targetall, nrepp):
         p (int): Number of features/dimensions in the data
         context (torch.Tensor): Context sequences to test
         targetall (list[torch.Tensor]): List of target sequences
-        nrepp (int): Number of repetitions to run
         
     Returns:
         torch.Tensor: Matrix of shape (p, p) containing the averaged effects
@@ -35,15 +34,10 @@ def get_context_predindex_pair_effect(model, p, context, targetall, nrepp):
 
     context_predindex_pair_effect = torch.zeros((p, p))  # Initialize a 2D array with zeros
 
-    for rep in range(nrepp):
-        print(f"Repetition {rep + 1}/{nrepp}")
-        for i in range(p):
-            
-            
-            meansq, tsq = meansq_context(model, context, targetall, i)  # Call the function
-            context_predindex_pair_effect[i, :] += meansq  # Accumulate the results
+    for i in range(p):
 
-    context_predindex_pair_effect /= nrepp  # Average the results
+        meansq, tsq = meansq_context(model, context, targetall, i)  # Call the function
+        context_predindex_pair_effect[i, :] += meansq  # Accumulate the results
 
     return context_predindex_pair_effect
 
@@ -151,7 +145,7 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
     else:
         stdpval = torch.zeros(p)
         
-    torch.set_grad_enabled(True)  # Disable gradient computation
+    torch.set_grad_enabled(True)  # Re-enable gradient computation
 
     return avepval, stdpval, context, targetall
 

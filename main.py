@@ -5,9 +5,6 @@ from torch.utils.data import Dataset, DataLoader
 import time
 import importlib
 import torch.optim as optim
-from torchsummary import summary
-from collections import Counter
-from matplotlib import pyplot as plt
 
 
 from src.data_preparation import SimulatedDataset, collate_function, load_real_data
@@ -15,7 +12,7 @@ from src.transformers import MiniTransformer
 import src.transformers as transformerFunctions
 from src.transformers import init_weights_recursive
 from src.transformers import print_parameters
-from src.transformers import create_custom_mask_pred, create_custom_mask_pair, create_distance_to_end_matrix, create_pairwise_distance_matrix, new_weird_oh_my_god_pred_distance_matrix
+from src.transformers import create_custom_mask_pred, create_custom_mask_pair, create_distance_to_end_matrix, create_pairwise_distance_matrix
 from src.evaluation import calculate_bench1_loss, calculate_bench2_loss, calculate_repeat_loss, calculate_regression_loss, evaluate_mini_transformer
 from src.statistical_testing import statistical_testing, print_p_values, plot_context_predindex_pair_effect, get_context_predindex_pair_effect
 import torch.autograd.profiler as profiler
@@ -48,7 +45,7 @@ if __name__ == '__main__':
     batch_size = 1          # Batch size for loading data
     dk = 1                  # d_k
     dv = 1                  # d_v
-    nheads = 16             # number of heads
+    nheads = 12             # number of heads
     ncum = 2                 # number of cumulants
     maxlen = 10             # maximum length of the sequence
     learning_rate = 1e-3
@@ -243,7 +240,7 @@ if __name__ == '__main__':
     
     print_p_values(avepval, stdpval)
 
-    context_predindex_pair_effect = get_context_predindex_pair_effect(model, p, context, targetall, nrepp)
+    context_predindex_pair_effect = get_context_predindex_pair_effect(model, p, context, targetall)
 
     plot_context_predindex_pair_effect(context_predindex_pair_effect, data_str, run_path)
 
