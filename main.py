@@ -45,7 +45,7 @@ if __name__ == '__main__':
     batch_size = 1          # Batch size for loading data
     dk = 1                  # d_k
     dv = 1                  # d_v
-    nheads = 12             # number of heads
+    nheads = 16             # number of heads
     ncum = 2                 # number of cumulants
     maxlen = 10             # maximum length of the sequence
     learning_rate = 1e-3
