@@ -44,7 +44,7 @@ The `MiniTransformer` consists of:
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone github.com:kianaf/MiniTransformer.git
 cd mini_transformer
 ```
 
@@ -181,8 +181,3 @@ Key dependencies include:
 ## Contributing
 
 [Add contribution guidelines if applicable]
-
-
-
-
-Can you update it based on things you know about it?
