@@ -509,7 +509,7 @@ def plot_context_predindex_pair_effect(context_predindex_pair_effect, data_str, 
                 "ghq_sum: Psychological distress"
             ]
         else:
-            variable_names = [f"Feature {i+1}" for i in range(context_predindex_pair_effect.shape[0])]
+            variable_names = [f"Variable {i+1}" for i in range(context_predindex_pair_effect.shape[0])]
 
     # Plot the context-predindex pair effect
 
