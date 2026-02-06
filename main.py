@@ -63,7 +63,7 @@ if __name__ == '__main__':
         maxlen = 10
         # Create Dataset and DataLoader
         train_dataset = SimulatedDataset(n, p, maxlen=maxlen, device = device).data
-        eval_dataset = SimulatedDataset(1000, p, maxlen=4, device = device).data
+        eval_dataset = SimulatedDataset(1000, p, maxlen=10, device = device).data
         predindex = 2
         
     else:

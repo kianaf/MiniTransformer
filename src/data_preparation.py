@@ -25,7 +25,7 @@ class SimulatedDataset(Dataset):
         - pos3 has special conditions:
           * It has a 0.1 probability of being 1 when both pos1 and pos2 have been seen as 1 in previous timesteps
           * The state of having "seen" pos1 or pos2 resets whenever pos3 is 1
-        - Sequences have variable lengths (2 to maxlen) controlled by random termination
+        - Sequences have variable lengths (3 to maxlen) controlled by random termination
         """
         self.n = n        # Number of data points
         self.p = p        # Number of features (dimensions)
@@ -77,8 +77,8 @@ class SimulatedDataset(Dataset):
 
                 # Apply the conditions based on the pos1, pos2, pos3
                 for k in range(self.p):
-                    curran = self.torch_cpp_rand()
-                    # curran = torch.rand()
+                    # curran = self.torch_cpp_rand()
+                    curran = torch.rand(1).item()
 
                     if (k != self.pos3 and curran > 0.3) or (k == self.pos3 and seenfirst and seensecond and curran > 0.1):
                         row[k] = 1.0
@@ -100,7 +100,8 @@ class SimulatedDataset(Dataset):
                 seensecond = justseensecond
 
                 # Stop the sequence generation randomly after j > 1 (for variable sequence lengths)
-                if j > 1 and self.torch_cpp_rand() > 0.8:
+                if j > 1 and torch.rand(1).item() > 0.8:
+                # if j > 1 and self.torch_cpp_rand() > 0.8:
                     break
 
             # Convert cur_matrix (which is a list of tensors) into a tensor and append to input_data
@@ -187,9 +188,6 @@ def load_real_data(data_str):
         if tensor.shape[0] > maxlen:
             maxlen = tensor.shape[0]
 
-    # # Step 5: Display the list of tensors
-    # for i, tensor in enumerate(tensors):
-    #     print(f"Tensor {i+1} for ID {group.index[0]}:")
-    #     print(tensor)
+
 
     return tensors, maxlen

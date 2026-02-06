@@ -1,0 +1,11 @@
+For combination sample size: 8 
+Variable 1: 0.1460 ± 0.32
+Variable 2: 0.1285 ± 0.32
+Variable 3: 0.0022 ± 0.00
+Variable 4: 0.6313 ± 0.19
+Variable 5: 0.4497 ± 0.42
+Variable 6: 0.4561 ± 0.29
+Variable 7: 0.6777 ± 0.10
+Variable 8: 0.2242 ± 0.40
+Variable 9: 0.6363 ± 0.18
+Variable 10: 0.5834 ± 0.13

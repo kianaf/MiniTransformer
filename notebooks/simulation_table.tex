@@ -1,0 +1,22 @@
+\begin{table}[h]
+\centering
+\label{tab:sim}
+    \begin{tabular}{llcccc} 
+        \toprule
+        \textbf{Approach} & \textbf{Metric} & $n_\text{train} = 100 $ & $n_\text{train} = 200$ & $n_\text{train} = 500$ & $n_\text{train} = 1000$ \\
+        & & & & & \\ 
+        \midrule
+\multirow{2}{*}{\makecell{Average}} & MSE & $0.209 \pm 0.002$ & $0.21 \pm 0.002$ & $0.209 \pm 0.002$ & $0.209 \pm 0.002$ \\
+ & MSE$_{j_3}$ & $0.218 \pm 0.007$ & $0.217 \pm 0.009$ & $0.214 \pm 0.01$ & $0.211 \pm 0.007$ \\
+\addlinespace
+\multirow{2}{*}{Regression} & MSE & $0.209 \pm 0.003$ & $0.206 \pm 0.002$ & $0.204 \pm 0.002$ & $0.204 \pm 0.002$ \\
+ & MSE$_{j_3}$ & $0.155 \pm 0.005$ & $0.153 \pm 0.006$ & $0.152 \pm 0.005$ & $0.151 \pm 0.004$ \\
+\addlinespace
+\multirow{2}{*}{Informed} & MSE & $\mathbf{0.204 \pm 0.002}$ & $0.204 \pm 0.002$ & $0.204 \pm 0.002$ & $0.204 \pm 0.002$ \\
+ & MSE$_{j_3}$ & $0.163 \pm 0.008$ & $0.163 \pm 0.008$ & $0.161 \pm 0.008$ & $0.159 \pm 0.005$ \\
+\addlinespace
+\multirow{2}{*}{MiniTransformer} & MSE & $0.21 \pm 0.006$ & $\mathbf{0.202 \pm 0.002}$ & $\mathbf{0.196 \pm 0.001}$ & $\mathbf{0.195 \pm 0.002}$ \\
+ & MSE$_{j_3}$ & $\mathbf{0.141 \pm 0.03}$ & $\mathbf{0.097 \pm 0.013}$ & $\mathbf{0.068 \pm 0.006}$ & $\mathbf{0.06 \pm 0.007}$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
