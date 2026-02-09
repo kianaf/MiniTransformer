@@ -9,4 +9,5 @@ runs
 src/__pycache__
 notebooks/results
 notebooks/statistical_testing
+MiniTransformer.pdf
 

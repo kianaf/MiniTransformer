@@ -95,7 +95,7 @@ class SimulatedDataset(Dataset):
                 # Append the row to cur_matrix
                 cur_matrix.append(row)
 
-                # Update the flags for seenfirst and seensecond
+                # Update flags only after the row → pos3 at time j uses state from before j (i_1 < i_2 < t)
                 seenfirst = justseenfirst
                 seensecond = justseensecond
 
@@ -153,6 +153,69 @@ def collate_function(batch):
     padded_sequences = torch.where(mask, padded_sequences, torch.tensor(0, dtype=padded_sequences.dtype))
 
     return padded_sequences, mask
+
+
+def compute_true_z(sequence, pos1=0, pos2=1, pos3=2):
+    """Reconstruct the true latent variable z_t from an observed simulated sequence.
+
+    z_t is the state at the *beginning* of time t (only history up to t-1), so i_2 < t.
+
+    Formula: z_t = 1 iff there exist i_1 < i_2 < t such that x[i_1, pos1] = 1,
+    x[i_2, pos2] = 1, and x[i*, pos3] = 0 for all i* with i_2 < i* < t. So the first
+    trigger (pos1) must occur strictly before the second (pos2), and pos3 must not
+    have fired between i_2 and t-1.
+
+    When z_t = 1, variable pos3 has a 90% probability of being 1 in the data generation.
+    When pos3 does fire, the state resets (z becomes 0).
+
+    This function replays the same flag-update logic as SimulatedDataset.generate_data
+    (pos1 -> pos2 -> pos3 per time step; flags updated only after the row; seensecond
+    only when pos2=1 and seenfirst was true previously, enforcing i_1 < i_2). z_t[j]
+    is computed from the state at the start of step j, so the condition is i_1 < i_2 < t.
+
+    Args:
+        sequence (torch.Tensor): A 2D tensor of shape (T, p) representing a single observed sequence.
+        pos1 (int, optional): Index of the first trigger variable. Defaults to 0.
+        pos2 (int, optional): Index of the second trigger variable. Defaults to 1.
+        pos3 (int, optional): Index of the target variable (whose activation resets the state). Defaults to 2.
+
+    Returns:
+        list[float]: A list of length T containing the true z_t value (0.0 or 1.0) at each time step.
+    """
+    T = sequence.shape[0]
+    z_t = []
+
+    justseenfirst = False
+    seenfirst = False
+    justseensecond = False
+    seensecond = False
+
+    for j in range(T):
+        # z_t at time j = state at beginning of j (only history before j) → i_1 < i_2 < t
+        z_t.append(1.0 if (seenfirst and seensecond) else 0.0)
+
+        # Replay flag updates in the same feature order as data generation (pos1 -> pos2 -> pos3)
+        # Flag updates ONLY happen when the observed value is 1 (matching the generation code
+        # where updates are inside the if-block that sets row[k] = 1.0)
+
+        # Process pos1
+        if sequence[j, pos1].item() == 1:
+            justseenfirst = True
+
+        # Process pos2 (requires seenfirst from PREVIOUS time step, not current)
+        if sequence[j, pos2].item() == 1 and seenfirst:
+            justseensecond = True
+
+        # Process pos3 (resets both flags when it fires)
+        if sequence[j, pos3].item() == 1:
+            justseenfirst = False
+            justseensecond = False
+
+        # End of time step: propagate flags (same as generation: update only after the row)
+        seenfirst = justseenfirst
+        seensecond = justseensecond
+
+    return z_t
 
 
 def load_real_data(data_str):
