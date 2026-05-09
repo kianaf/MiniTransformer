@@ -218,19 +218,39 @@ def compute_true_z(sequence, pos1=0, pos2=1, pos3=2):
     return z_t
 
 
-def load_real_data(data_str):
+def load_real_data(data_str, file_path=None):
     """
-    Loads real data from a CSV file and returns a list of tensors.
+    Loads longitudinal data from a CSV file and returns a list of per-individual
+    tensors (variable-length, ordered by visit index `t`).
+
+    The CSV is expected to have columns `id`, `t`, and one column per feature;
+    after dropping `id` and `t` the remaining columns are turned into a (T, p)
+    float32 tensor per individual.
 
     Args:
-        data_str (str): The string identifier for the data file.
+        data_str (str): identifier; resolves to a default path under
+            /Users/farhadyar/Nextcloud/lora_data_share_freiburg/preprocessed/
+            for backwards compatibility with the LORA datasets ("ghq_b_sum",
+            "ghq_sum"), or to the project-local PBC2 file when set to "pbc2".
+        file_path (str, optional): explicit path to a CSV. When provided,
+            overrides the default resolved from `data_str`. Use this for
+            datasets that don't live under the LORA preprocessed directory.
 
     """
 
-    maxlen = 0 
-    # Step 1: Load the CSV file into a DataFrame
-    # file_path = "/Users/farhadyar/Nextcloud/lora_data_share_freiburg/preprocessed/20241120_lora_complete_" + data_str + ".csv"  # Replace with your file path
-    file_path = "/Users/farhadyar/Nextcloud/lora_data_share_freiburg/preprocessed/20250113_lora_complete_" + data_str + ".csv"  # Replace with your file path
+    maxlen = 0
+    # Step 1: Resolve the CSV path. Explicit `file_path` wins; otherwise
+    # dispatch on the legacy `data_str` identifier.
+    if file_path is None:
+        if data_str == "pbc2":
+            file_path = "data/pbc2/pbc2_binarised.csv"
+        elif data_str == "ili":
+            file_path = "data/ili/ili_binarised.csv"
+        else:
+            file_path = (
+                "/Users/farhadyar/Nextcloud/lora_data_share_freiburg/"
+                "preprocessed/20250113_lora_complete_" + data_str + ".csv"
+            )
     df = pd.read_csv(file_path)
 
     # Step 2: Sort by 'id' and 't' to ensure correct order

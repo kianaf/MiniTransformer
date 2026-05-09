@@ -146,22 +146,28 @@ def calculate_repeat_loss(eval_data, predindex):
     return bench3loss, bench3_loss_predindex
 
 
-def calculate_regression_loss(train_data, eval_data, predindex):
+def calculate_regression_loss(train_data, eval_data, predindex, return_per_target=False):
     """Calculate the loss for a GLM regression baseline model.
-    
+
     Fits separate Gaussian GLM models for each feature using all other features at t-1
     as predictors. This serves as a linear modeling baseline that captures basic
     temporal dependencies.
-    
+
     Args:
         train_data (list[torch.Tensor]): List of training sequences
         eval_data (list[torch.Tensor]): List of evaluation sequences
         predindex (int): Index of the feature to focus on for specific predictions
-    
+        return_per_target (bool): If True, additionally return the full per-target
+            evaluation-MSE array (length p). The first two return values are
+            unchanged for backwards compatibility with the existing callers used
+            to produce the paper's Tables 1 and 3.
+
     Returns:
         tuple: Contains:
             - pred_feature_mse (float): MSE for the specific feature at predindex
             - overall_mse (float): Average MSE across all features
+            - (optional) per_target_mse (np.ndarray of shape (p,)): per-target
+              evaluation-fold MSE, returned only when return_per_target=True.
     """
     num_features = train_data[0].shape[1]
     models = []
@@ -221,7 +227,9 @@ def calculate_regression_loss(train_data, eval_data, predindex):
     # Print evaluation results
     # for i, (train_mse, eval_mse) in enumerate(zip(train_mses, eval_mses)):
     #     print(f"Feature {i+1}: Train MSE = {train_mse:.4f}, Eval MSE = {eval_mse:.4f}")
-        
+
+    if return_per_target:
+        return np.mean(eval_mses[predindex]), np.mean(eval_mses), np.array(eval_mses)
     return np.mean(eval_mses[predindex]), np.mean(eval_mses)
     
 

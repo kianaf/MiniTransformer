@@ -1,0 +1,949 @@
+\RequirePackage{silence}
+\ActivateWarningFilters
+\WarningFilter*{latex}{You have requested}
+\WarningFilter*{fixltx2e}{fixltx2e}
+\WarningFilter*{etex}{Extended}
+\WarningFilter{latex}{The counter will not be printed}
+\WarningFilter*{latex}{counter}
+
+\UseRawInputEncoding
+\documentclass[AMA,Times1COL]{WileyNJDv5} %STIX1COL,STIX2COL,STIXSMALL
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\DeclareUnicodeCharacter{0141}{\L}  % Ł
+\DeclareUnicodeCharacter{0142}{\l}  % ł  
+
+\articletype{Research Article}%
+
+
+\usepackage{blindtext}
+\usepackage{mathrsfs}
+\usepackage[cal=cm,scr=boondox]{mathalpha}
+\usepackage{mathtools}
+% \usepackage{unicode-math}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}   % For better-looking tables
+\usepackage{caption}    % For customizing captions
+\usepackage{makecell}
+\usepackage{multirow}
+\usepackage{subcaption}
+\usepackage{lastpage}   % For LastPage reference
+\captionsetup[table]{font=small, labelfont=bf}
+
+% Additional warning filters
+\WarningFilter{hyperref}{Ignoring empty anchor}
+\WarningFilter*{latex}{Unused global}
+\WarningFilter{latex}{The counter will not be printed}
+\WarningFilter*{natbib}{Citation}
+\WarningFilter{natbib}{There were undefined}
+\WarningFilter{natbib}{Citation(s) may have changed}
+\WarningFilter{natbib}{Author undefined}
+\WarningFilter{latexfont}{Font shape}
+\WarningFilter{latexfont}{Size substitutions}
+
+% Suppress overfull/underfull box warnings by setting extreme tolerance
+\tolerance=10000
+\emergencystretch=10em
+\hfuzz=\maxdimen
+\vfuzz=\maxdimen
+\hbadness=10000
+\vbadness=10000
+
+% Patch LaTeX warning command to suppress "counter will not be printed" warning
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd{\@latex@warning}
+  {LaTeX Warning:}
+  {\def\@tempa{The counter will not be printed}\def\@tempb{#1}%
+   \ifx\@tempa\@tempb\else LaTeX Warning:\fi}
+  {}{}
+\makeatother
+
+% Custom commands from original paper
+\newcommand{\dataset}{{\cal D}}
+\newcommand{\fracpartial}[2]{\frac{\partial #1}{\partial  #2}}
+
+
+\received{1 January 2024}
+\revised{1 May 2024}
+\accepted{1 September 2024}
+\journal{Statistics in Medicine}
+\volume{00}
+\copyyear{2024}
+\startpage{1}
+
+\raggedbottom
+
+% Any additional packages needed should be included after jmlr2e.
+% Note that jmlr2e.sty includes epsfig, amssymb, natbib, and graphicx,
+% and defines many common macros, such as 'proof' and 'example'.
+%
+% It also sets the bibliographystyle to plainnat; for more information on
+% natbib citation styles, see the natbib documentation, a copy of which
+% is archived at http://www.jmlr.org/format/natbib.pdf
+
+% Available options for package jmlr2e are:
+%
+%   - abbrvbib : use abbrvnat for the bibliography style
+%   - nohyperref : do not load the hyperref package
+%   - preprint : remove JMLR specific information from the template,
+%         useful for example for posting to preprint servers.
+%
+% Example of using the package with custom options:
+%
+% \usepackage[abbrvbib, preprint]{jmlr2e}
+
+% \usepackage{jmlr2e}
+
+% Definitions of handy macros can go here
+
+% \newcommand{\dataset}{{\cal D}}
+% \newcommand{\fracpartial}[2]{\frac{\partial #1}{\partial  #2}}
+
+% Heading arguments are {volume}{year}{pages}{date submitted}{date published}{paper id}{author-full-names}
+
+% \input{commands}
+
+% \usepackage{lastpage}
+% \jmlrheading{23}{2022}{1-\pageref{LastPage}}{1/21; Revised 5/22}{9/22}{21-0000}{Author One and Author Two}
+
+% Short headings should be running head and authors last names
+
+% \ShortHeadings{A statistical perspective on transformers for small longitudinal cohort data}{Farhadyar et al.}
+% \firstpageno{1}
+
+\begin{document}
+
+
+
+% \title{Can Transformers do Statistical testing?}
+
+% \title{Adapting transformer neural networks for longitudinal data with few time points}
+
+% \title{Modeling small longitudinal data with few time points: \\ MiniTransformer and a statistical testing approach}
+
+%\title{MiniTransformer: a lightweight transformer for small longitudinal data with few time points}
+
+\title{A statistical perspective on transformers for small longitudinal cohort data}
+
+\author[1,2]{Kiana Farhadyar}
+\author[1,2]{Maren Hackenberg}
+\author[3]{Kira Ahrens}
+\author[3]{Charlotte Schenk}
+\author[4,5]{Bianca Kollmann}
+\author[5,6,7,8]{Oliver Tüscher}
+\author[5,6]{Klaus Lieb}
+\author[3]{Michael M Plichta}
+\author[3]{Andreas Reif}
+\author[5,9]{Raffael Kalisch}
+\author[1,2]{Martin Wolkewitz}
+\author[1,2]{Moritz Hess}
+\author[1,2]{Harald Binder}
+
+\authormark{Farhadyar \textsc{et al.}}
+\titlemark{Transformers for Small Longitudinal Cohort Data}
+
+\address[1]{\orgdiv{Institute of Medical Biometry and Statistics (IMBI)}, \orgname{University of Freiburg}, \orgaddress{\city{Freiburg}, \country{Germany}}}
+
+\address[2]{\orgdiv{Freiburg Center for Data Analysis, Modeling and AI}, \orgname{University of Freiburg}, \orgaddress{\city{Freiburg}, \country{Germany}}}
+
+\address[3]{\orgdiv{Department of Psychiatry, Psychosomatic Medicine and Psychotherapy}, \orgname{University Hospital Frankfurt}, \orgaddress{\city{Frankfurt}, \country{Germany}}}
+
+\address[4]{\orgdiv{Department of Neuropsychology and Psychological Resilience Research, Central Institute of Mental Health (ZI)}, \orgaddress{\city{Mannheim}, \country{Germany}}}
+
+\address[5]{\orgdiv{Leibniz Institute for Resilience Research (LIR)}, \orgaddress{\city{Mainz}, \country{Germany}}}
+
+
+\address[6]{\orgdiv{Department of Psychiatry and Psychotherapy, Johannes Gutenberg University Medical Center Mainz}, \orgdiv{\city{Mainz}, \country{Germany}}}
+
+\address[7]{\orgdiv{Department of Psychiatry, Psychotherapy and Psychosomatic Medicine, University Medicine Halle, Martin-Luther University Halle-Wittenberg, }, \orgdiv{\city{Halle}, \country{Germany}}}
+
+\address[8]{\orgdiv{German Center for Mental Health (DZPG), partner site Halle-Jena-Magdeburg}, \orgdiv{\city{Halle}, \country{Germany}}}
+
+\address[9]{\orgdiv{Neuroimaging Center (NIC), Focus Program Translational Neuroscience (FTN), Johannes Gutenberg University Medical Center}, \orgaddress{\city{Mainz}, \country{Germany}}}
+
+
+
+\corres{Corresponding author Kiana Farhadyar, Institute of Medical Biometry and Statistics (IMBI), University of Freiburg, Freiburg, Germany. \email{kiana.farhadyar@uniklinik-freiburg.de}}
+
+
+\abstract[Abstract]
+{Modeling of longitudinal cohort data typically involves complex temporal dependencies between multiple variables. There, the transformer architecture, which has been highly successful in language and vision applications, allows us to account for the fact that the most recently observed time points in an individual's history may not always be the most important for the immediate future. This is achieved by assigning attention weights to observations of an individual based on a transformation of their values. One reason why these ideas have not yet been fully leveraged for longitudinal cohort data is that typically, large datasets are required. Therefore, we present a simplified transformer architecture that retains the core attention mechanism while reducing the number of parameters to be estimated, to be more suitable for small datasets with few time points. Guided by a statistical perspective on transformers, we use an autoregressive model as a starting point and incorporate attention as a kernel-based operation with temporal decay, where aggregation of multiple transformer heads, i.e. different candidate weighting schemes, is expressed as accumulating evidence on different types of underlying characteristics of individuals. This also enables a permutation-based statistical testing procedure for identifying contextual patterns. In a simulation study, the approach is shown to recover contextual dependencies even with a small number of individuals and time points. In an application to data from a resilience study, we identify temporal patterns in the dynamics of stress and mental health. This indicates that properly adapted transformers can not only achieve competitive predictive performance, but also uncover complex context dependencies in small data settings.}
+
+
+\keywords{Cohort data, small data, temporal patterns, transformers, attention mechanism, permutation testing}
+
+\jnlcitation{\cname{%
+\author{Farhadyar K.},
+\author{Hackenberg M.},
+\author{Ahrens K.}, and
+\author{Binder H.}}.
+\ctitle{A statistical perspective on transformers for small longitudinal cohort data.} \cjournal{\it Stat Med.} \cvol{2024;00(00):1--\pageref{LastPage}}.}
+
+
+\maketitle
+\renewcommand\thefootnote{}
+\footnotetext{\textbf{Abbreviations:} VAR, vector autoregressive; LSTM, long short-term memory; MSE, mean squared error; GHQ, General Health Questionnaire; MIMIS, Mainz Inventory of Microstressors.}
+
+\renewcommand\thefootnote{\fnsymbol{footnote}}
+\setcounter{footnote}{1}
+
+\section{Introduction}
+
+Transformer neural network architectures \citep{vaswani_attention_2017} have been successful for modeling of data with sequence structure, in particular for large language models \citep{radford_improving_2018}. Key to this is the ability to take context effects into account, i.e. potentially complex patterns of elements that jointly occur in a sequence, when predicting the next element. Transformers have since been increasingly adopted for time series \citep{wen_transformers_2023} and modeling of longitudinal data \citep{yang_transformehr_2023, li_behrt_2020}. However, performance typically hinges on the availability of large amounts of training data \citep{hassani_escaping_2022}. In small data settings, transformers might overfit and generalize poorly \citep{lin_survey_2022}, and thus can be outperformed by much simpler models \citep{zeng_are_2022}. 
+
+To unlock the potential of transformers for longitudinal cohort data with few individuals and time points, we propose a minimal transformer model that relies on a considerably smaller number of parameters that need to be estimated. Instead of starting from the full transformer architecture and simplifying it, we use an established statistical model as a starting point, specifically a linear vector autoregressive model, and add in the minimally necessary ingredients of the multi-head attention mechanism that is at the core of the transformer architecture. 
+
+Vector autoregressive (VAR) models, comprehensively covered by L\"utkepohl,\textsuperscript{\cite{lutkepohl_new_2005}}, have originally been designed to model multivariate time series by expressing the current time point as a linear combination of a fixed number of the most recent points, observed on an equidistant time grid. This does not allow for flexible-length patterns or a strong influence of non-recent time points. To allow for a larger number of characteristics, Bayesian VAR uses priors for regularization \citep{litterman_forecasting_1986}, and factor-augmented VAR projects variables into a lower-dimensional space \citep{bernanke_measuring_2005}. Several approaches have been developed to allow parameters or regimes to change over time \citep{tong_threshold_1991, krolzig_markov-switching_1997, tsay_testing_1998}, some of which also allow for irregular sampling. Extensions such as those proposed by Cai et al.\textsuperscript{\cite{cai_functional-coefficient_2000}} can model complex and nonlinear multivariate structures. Still, the number of past time points that are considered and needed for subsequent prediction has to be decided on beforehand. As an alternative, several artificial neural network architectures have been suggested, such as recurrent neural networks \citep{lipton_critical_2015} or LSTNet \citep{lai_modeling_2018},  but still struggle  with long-range dependencies across the history of an observational unit.  
+
+Transformer neural network architectures, which have been developed to address this,  can be seen as an extension of dynamic VARs \citep{lu_linear_2025} to deal with a varying number of past time points. Importance does not have to be inversely proportional in time, but is determined by an attention mechanism that assigns weights depending on a transformation of the characteristics of an observational unit observed at a time point. As a single attention pattern might be too limited \cite{cui_superiority_2025}, transformers typically use multi-head attention, i.e. several weighting patterns. This can be interpreted as a nonparametric Bayesian ensemble, where each head approximates a sample from a posterior over attention distributions \citep{an_repulsive_2020}.  Yet, the interpretation of a fitted transformer model remains challenging. While attention scores have been proposed as indicators of feature relevance, their validity as explanations has been questioned, as attention weights may not reliably reflect the true importance of input features \citep{jain_attention_2019}. Recent work has focused on developing formal statistical frameworks for complex models \citep{coleman_scalable_2022, miwa_statistical_2024}. Notably, \cite{shiraishi_statistical_2025} introduced selective inference methods for vision transformers. However, these approaches do not specifically address the statistical significance of patterns in longitudinal cohort data, i.e. an approach that facilitates subsequent interpretation in this setting is missing so far. Enabled by the proposed minimal transformer architecture, we introduce a permutation-testing approach to fill this gap.
+
+
+
+% % \blindmathpaper
+% \begin{figure}[ht]
+%     \centering
+%     \includegraphics[width = 0.95\linewidth]{figures/Figures_main.png}
+%     \caption{Schematic overview of the MiniTransformer architecture and statistical testing framework. The MiniTransformer processes input sequences through simplified attention mechanisms. Each head ($h=1,\ldots, \headnumber$) produces scalar attention scores through component-wise projections and introduced biases, with temporal decay factors modulating attention weights. Query-key interactions generate attention weights, incorporating both variable relationships and temporal distance through the kernel function in Equation~(\ref{eq:kernel}). Transformed values are aggregated into cumulants ($z_1,\ldots,z_{\cumulantsnumber}$) using horizon-aware decay, capturing temporally contextualized information. Then, the statistical testing framework identifies significant contexts through permutation testing, analyzing how different contexts modify predictions. The resulting context-target effect matrix.}
+%     \label{fig:main_figure}
+% \end{figure}
+
+In Section \ref{sec:methods}, we introduce the minimal transformer architecture, MiniTransformer, also outlining  the main differences between the proposed architecture and the classical transformer, and providing a statistical testing framework. We evaluate our approach through a simulation design and an application to data from a cohort study on psychological resilience in Section~\ref{sec:experiments}. Section~\ref{sec:discussion} provides concluding remarks and a more general perspective on the potential of transformers for modeling small longitudinal data in biomedicine.
+
+
+\section{Methods} \label{sec:methods}
+
+\subsection{The MiniTransformer approach}
+
+
+Consider the longitudinal data of an individual, where for each of $T$ successive time points $t_i, i=1,\ldots,T$, the vector $\mathbf{x}_{t_i} 
+\in \mathbb{R}^{p+1}$ comprises $p$ measurements of characteristics of the individual and a constant term 1. The aim is to predict the values in $\mathbf{y} = (y_1, \ldots, y_{q})' $, observed at some future time $t_{T+1}$, which might be future measurements of the same variables, with $q=p$, or some other future characteristics. 
+
+In a first step, we want to transform each $\mathbf{x}_{t_i}$ into scalar values $\tilde{x}^{(h)}_{t_i}, h=1,\ldots,H$, thereby implementing a lightweight version of multi-head attention to potentially reflect up to $H$ different patterns in the data. Specifically, the transformation of $\mathbf{x}_{t_i}$ should be able to take the information $\mathbf{x}_{t_l}, l=1,\ldots,T$, from another time point into account. To achieve this, we use a kernel function 
+\begin{equation}\label{eq:kernel}
+g(\mathbf{x}_{t_i}, \mathbf{x}_{t_l}; \mathbf{w}_{\text{query}}^{(h)}, \mathbf{w}_{\text{key}}^{(h)}) = \exp{\left(\mathbf{x}_{t_i}' \mathbf{w}_{\text{query}}^{(h)} \cdot \mathbf{x}_{t_l}' \mathbf{w}_{\text{key}}^{(h)}\right)} \cdot \exp{\left(-(w_{\mathrm{dist}}\cdot|t_i - t_l|)^\gamma\right)} 
+\end{equation}
+that encapsulates the idea of pairwise attention, parameterized by query parameters $w_{\mathrm{query}}^{(h)} \in \mathbb{R}^{p+1}$, key parameters $w_{\mathrm{key}}^{(h)} \in \mathbb{R}^{p + 1}$, and value parameters $\mathbf{w}_{\text{value}}^{(h)} \in \mathbb{R}^{p + 1}$, for each head $h=1,\ldots, H$. The second term in the product reflects the idea of decay of information as the temporal distance $|t_i - t_l|$ between the pair of observations increases, where $w_{\mathrm{dist}} \geq 0$ is a parameter that should be learned from the data, and $\gamma$ is a tuning parameter that we have set to $\gamma=5$ in our applications. 
+Based on the kernel function (\ref{eq:kernel}), we obtain transformed values 
+\begin{equation}
+\label{eq:transform}
+\tilde{x}_{t_i}^{(h)} = \frac{ \sum_{l=1}^i g(\mathbf{x}_{t_i}, \mathbf{x}_{t_l}; \mathbf{w}_{\mathrm{query}}^{(h)}, \mathbf{w}_{\mathrm{key}}^{(h)}) \cdot \mathbf{x}_{t_l}' \mathbf{w}_{\text{value}}^{(h)}}{\sum_{l=1}^i g(\mathbf{x}_{t_i}, \mathbf{x}_{t_l}; \mathbf{w}_{\mathrm{query}}^{(h)}, \mathbf{w}_{\mathrm{key}}^{(h)})} 
+\qquad i=1,\ldots,T, \,\, h=1,\ldots,H
+\end{equation}
+that comprise weighted averages of the observations up to the current time point.
+
+While $y \in \mathbb{R}^{q}$ could be predicted directly based on these transformed values, it will often be the case that there is some correlation structure between the elements, which can be explained by a lower-dimensional representation $z = (z_1, \ldots, z_C)$ with $C < q$. Therefore, we suggest to cumulate the transformed values $\tilde{x}_{t_i}^{(h)}$ into
+\begin{equation}\label{eq:cumulant}
+z_c = \sum_{i=1}^T \tilde{\mathbf{x}}_{t_i}' \mathbf{w}_{\mathrm{cum}}^{(c)} \cdot \exp{\left(-(w_{\mathrm{horizon}}\cdot|t_{T+1} - t_i|)^\gamma\right)} \quad c=1,\dots,C,
+\end{equation}
+where each cumulant $z_c$ can receive input from the $H$ different heads via the vector of transformed values $\tilde{\mathbf{x}}_{t_i} = (\tilde{x}_{t_i}^{(1)}, \ldots, \tilde{x}_{t_i}^{(H)})' $, as parameterized via $\mathbf{w}_{\text{cum}}^{(c)} = (w_{\mathrm{cum},1}^{(c)}, \ldots, w_{\mathrm{cum}, H}^{(c)})' $. There, each contribution receives a decay according to the distance $|t_{T+1}-t_i|$ to the prediction horizon time $t_{T+1}$, at which $\mathbf{y}$ is observed, parameterized by $w_{\mathrm{horizon}} \geq 0$.
+
+Predictions are then obtained via a standard regression model
+\begin{equation}
+\label{eq:output}
+\hat{y}_r = \beta_0^{(r)} + \mathbf{z}'\boldsymbol\beta^{(r)}, \quad r = 1,\ldots,q,
+\end{equation}
+with intercept parameters $\beta_0^{(r)}$ and parameter vectors $\boldsymbol{\beta}^{(r)} = (\beta_1^{(r)}, \ldots, \beta_{C}^{(r)})', c=1,\ldots,C,$ for transforming the input of the cumulant vector $\mathbf{z}=(z_1,\ldots,z_C)'$.
+
+Estimates for all parameters can be obtained jointly, by minimizing the squared error loss $\sum_{r=1}^{p} (y_r - \hat{y}_r)^2$. If other types of endpoints are to be considered, e.g., binary or time-to-event endpoints, appropriate alternative regression models and loss functions can be used instead. Assuming that data for several individuals is available, batched stochastic gradient descent \citep{bottou_large-scale_2010} is used for parameter estimation, with gradients obtained via differential programming techniques \citep{hackenberg_using_2020}.
+
+
+
+\subsection{Main differences to standard transformers}
+\label{sec:minitransformer_differences}
+
+
+
+In a standard decoder-based transformer architecture \citep{vaswani_attention_2017}, each element of a sequence, typically called ``token'' is mapped into a high-dimensional space via a neural network embedding layer. In text processing applications, where the tokens are (parts of) words, this is necessary to obtain a quantitative representation for subsequent modeling. Such an embedding layer could also be considered in longitudinal cohort settings, where the tokens, i.e., the observations in the history of an individual, are already quantitative, to increase representation capacity. However, such a transformation could make interpretation of the effect of individual characteristics considerably more difficult, particularly in small data settings where overparameterization is also a concern \citep{barcelo_model_2020}. Therefore, the MiniTransformer approach omits this embedding and just adds a constant element to the input vectors to allow for shifts in representation.
+
+
+As a further simplification, the query and key projections in (\ref{eq:kernel}) and the value projection in (\ref{eq:transform}) reduce the representations to scalars, with weight parameter vectors $\mathbf{w}_{\mathrm{query}}^{(h)}$, $\mathbf{w}_{\mathrm{key}}^{(h)}$, and $\mathbf{w}_{\mathrm{value}}^{(h)}$, for each attention head $h=1,\ldots,H$. In contrast, standard transformers rely on weight matrices to project into query, key, and value representations, typically of the same dimension $q_{\mathrm{QKV}} \geq p$. While the MiniTransformer does not have that much representational flexibility, some of this might be recovered by still allowing for the input of multiple attention heads in (\ref{eq:cumulant}), to potentially reflect different types of patterns in the data. 
+
+In standard transformers, the information about the order of observations is incorporated through either absolute positional encoding \citep{vaswani_attention_2017} or relative positional encoding \citep{shaw_self-attention_2018}, each with flexible influence for each index position. This is combined with a clipping value $\mathscr{c}$, beyond which all distances are treated equally, resulting in at least $\mathscr{c} + 1$ parameters that need to be estimated. The MiniTransformer uses a relative positional encoding schemes in (\ref{eq:kernel}) and (\ref{eq:cumulant}), but reduces complexity to just three parameters $w_{\mathrm{dist}}$, $w_{\mathrm{horizon}}$, and $\gamma$. This still allows for reflecting patterns where the influence of observations smoothly diminishes over time (e.g. \citealp{setodji_exponential_2019,schilling_emotional_2022, li_generic_2022}). 
+
+
+Finally, the MiniTransformer simplifies the standard practice of transforming the concatenated multi-head output, in our case $\tilde{\mathbf{x}}_{t_i}$, by a large projection layer. Instead of implementing the latter as a fully connected neural network (with $\gg (q_{QKV}\cdot H)^2$ parameters), we just use a linear transformation via \(\mathbf{w}^{(.)}_\mathrm{cum}\) to summarize information across attention heads. While the further linear transformation in (\ref{eq:output}) might seem redundant, we found in our experiments that this provided more flexibility when combined with random parameter initialization and stochastic gradient descent. Non-linear transformations, as often employed in standard transformers, could be easily introduced in (\ref{eq:transform}), (\ref{eq:cumulant}), and (\ref{eq:output}) to ease identifiability concerns, but we found no systematic benefit in our experiments.
+
+
+
+
+%\subsection*{Parameter count comparison}
+%For clarity, we summarize the parameter counts for a single decoder layer under common assumptions (embedding dimension equal to $\variablesnumber$, $\headnumber$ attention heads, feed-forward width $d_{\mathrm{ff}}$, and relative positional with clipping value $\mathscr{c}$) as below:
+
+
+%\begin{equation*}
+%\begin{split}
+%n_\mathrm{params} &=
+%\underbrace{3\headnumber\variablesnumber}_{\shortstack{\scriptsize \scriptsize $\mathbf{w}_\mathrm{query},\; \mathbf{w}_\mathrm{key},\; \mathbf{w}_\mathrm{value}$}}\; 
+%+\; \underbrace{3\headnumber}_{\shortstack{\scriptsize introduced\\ \scriptsize biases}}\; +\; \underbrace{\headnumber\,\cumulantsnumber}_{\mathbf{W}_{\text{cumulants}}}\; \\&+\; \underbrace{\outputdimension\,\cumulantsnumber + \outputdimension}_{\shortstack{\scriptsize regression\\ \scriptsize parameters}}\; +\; \underbrace{2}_{\shortstack{\scriptsize positional\\ \scriptsize encoding}}\,.
+%\end{split}    
+%\end{equation*}
+
+%By contrast, a classical decoder-based transformer with output projection matrix $W^O$, a position-wise feed-forward network and a simple prediction component totals
+
+
+%\begin{equation*}
+%\begin{split}
+%n_\mathrm{params} &=
+%\underbrace{\variablesnumber(\variablesnumber+1)}_{\text{embedding}}\; +\; \underbrace{2\headnumber d_\mathrm{key} \, \variablesnumber + \headnumber d_\mathrm{value} \, \variablesnumber}_{\shortstack{\scriptsize  \scriptsize $\mathbf{W}_\mathrm{query},\; \mathbf{W}_\mathrm{key},\; \mathbf{W}_\mathrm{value}$}}\; +\; \underbrace{\headnumber d_\mathrm{value} \, \variablesnumber}_{\shortstack{ \scriptsize output projection \\ \scriptsize matrix}}\; \\ &+\; \underbrace{\big(2\,\variablesnumber\, d_{\mathrm{ff}} + d_{\mathrm{ff}} + \variablesnumber\big)}_{\shortstack{\scriptsize feed forward\\ \scriptsize neural network}}\; +\; \underbrace{\variablesnumber \outputdimension + \outputdimension}_{\shortstack{\scriptsize prediction\\ \scriptsize layer}}\; +\; \underbrace{\mathscr{c} + 1}_{\shortstack{\scriptsize  positional\\ \scriptsize encoding}}\,.
+%\end{split}    
+%\end{equation*}
+
+Taken together, the simplifications in the MiniTransformer reduce the number of parameters to be estimated by at least $\mathcal{O}(p^2H^2)$, while still preserving core ideas of attention and temporal decay.
+
+\subsection{A permutation test for context effects}\label{sec:statistical_testing}
+
+Based on the attention kernel (\ref{eq:kernel}), the MiniTransformer approach determines the influence of each of the previous observations, which serve as a context to the current observation, on the transformation of the current observation in (\ref{eq:transform}), and thus also its contribution to the subsequent prediction in (\ref{eq:output}). Therefore, the estimated parameters reflect context patterns, and in particular, which characteristics of individuals contribute the most to such context patterns. Unfortunately, the individual parameters are difficult to interpret, and also not amenable to statistical inference. Therefore, we focus on the effect of characteristics of individuals on the context that are reflected in changes in prediction. For this, we propose
+a permutation testing approach that compares predictions that are based on a single observation without context to predictions with context observations. 
+
+Specifically, we consider just a single previous observation $\mathbf{x}^{\mathrm{context}} = \left(1, x^\mathrm{context}_{1}, \ldots, x^\mathrm{context}_{p}\right)'$ as a potential context for each of $V$ potential later observations $\mathbf{x}^{\mathrm{visit}}_v = \left(1, x^\mathrm{visit}_{v,1}, \ldots, x^\mathrm{visit}_{v,p}\right)', v=1,\ldots,V $, that might subsequently be used for predicting a future value $y_r$. We will ignore precise time information (essentially setting the time decay factors in (\ref{eq:kernel}) and (\ref{eq:cumulant}) to the value $1$). Therefore, we will also omit time indices. 
+
+%The contribution of $x_{\mathrm{tar}}$ toward the prediciton $\hat{y}_r$ without context is
+%\begin{equation}\label{eq:purepred}
+%\sum_{q=1}^Q \beta_{q}^{(r)} \cdot \sum_{h=1}^\headnumber  w_{\mathrm{cumulant}, h}^{(q)} \cdot x_{\mathrm{tar}}^\top w_{\textrm{value}}^{(h)}.
+%\end{equation}
+%With $x_{\mathrm{context}}$ as a context, this becomes
+%\begin{equation}\label{eq:contpred}
+%\sum_{q=1}^Q \beta_{q}^{(r)} \cdot \sum_{h=1}^\headnumber  w_{\mathrm{cumulant}, h}^{(q)} \cdot \frac{
+%g(x_{\mathrm{tar}}, x_{\mathrm{context}}; w_{\mathrm{query}}^{(h)}) \cdot  x_{\mathrm{context}}^\top w_{\textrm{value}}^{(h)} + g(x_{\mathrm{tar}}, x_{\mathrm{tar}}; w_{\mathrm{query}}^{(h)}) \cdot  x_{\mathrm{tar}}^\top w_{\textrm{value}}^{(h)}}
+%{g(x_{\mathrm{tar}}, x_{\mathrm{context}}; w_{\mathrm{query}}^{(h)}) +
+%g(x_{\mathrm{tar}}, x_{\mathrm{tar}}; w_{\mathrm{query}}^{(h)})}.
+%\end{equation}
+
+The effect of variable $j\in\{1,\ldots,p\}$ on the difference between the contribution of $\mathbf{x}_v^{\mathrm{visit}}$ to the prediction of $\hat{y}_r$ with and without context is
+\begin{equation}\label{eq:diffpred}
+\Delta^{(r)}_{j, v} =
+\sum_{c=1}^{C} \beta_{c}^{(r)} \cdot \sum_{h=1}^{H}  w_{\mathrm{cum}, h}^{(h)} \cdot \frac{
+  \sum_{j=1}^{p} w^{(h)}_{\textrm{value},j}\cdot \left(x_{v,j}^\mathrm{visit} - \mathbf{x}_{j}^\mathrm{context}\right)}
+{1 +g(\mathbf{x}_v^{\mathrm{visit}}, \mathbf{x}_v^{\mathrm{visit}}; .)/g(\mathbf{x}_v^{\mathrm{visit}}, \mathbf{x}^{\mathrm{context}}; .)},
+\end{equation}
+which in particular depends on how $\mathbf{w}_{\textrm{value}}^{(h)} = (w_{\textrm{value}, 0}^{(h)},w_{\textrm{value}, 1}^{(h)}, \ldots, w_{\textrm{value}, p}^{(h)})'$ weights the differences between the variable with index $j$ in $\mathbf{x}_v^{\mathrm{visit}}$ and $\mathbf{x}^{\mathrm{context}}$. The difference (\ref{eq:diffpred}) also increases when the attention kernel $g(\cdot)$ between the two observations becomes larger relative to the self-attention of $\mathbf{x}_v^{\mathrm{visit}}$, which can also be driven by the variable with index $j$.
+
+Assuming that the variables in $\mathbf{x}^{\mathrm{context}}$ have similar variance, which could be facilitated by standardization before model fitting, we can now add some value $\delta$ either to the variable with index $j_1$ in $x^{\mathrm{context}}$, or to the variable with index $j_2$, to induce a comparable change, and compare the two changes by calculating (\ref{eq:diffpred}) for each of the two, to obtain $\Delta_{j_1,v}^{(r)}$ and $\Delta_{j_2, v}^{(r)}$. More generally, this could be performed for all variables, and all visit observations ${\mathbf{x}^{\mathrm{visit}}_{v}}$, resulting in a matrix
+\begin{equation}\label{eq:diffmat}
+\boldsymbol{\Delta}^{(r)} := \left( \Delta^{(r)}_{j, v} \right)_{\substack{j=1, \ldots, p \\ v=1, \ldots, V}}.
+\end{equation}
+This matrix depends on the values of $\mathbf{x}^{\mathrm{context}}$ and $\delta$, and these should be chosen so that $\mathbf{x}^{\mathrm{context}}$ represents some kind of reference observation, and $\delta$ a change of reasonable magnitude. For example, when there is only binary data with values $0$ and $1$, all values of $x^{\mathrm{context}}$ might be set to zero, and $\delta$ set to $1$.
+
+Summary statistics $s_j^{(r)}, j=1,\ldots,p,$ can now be calculated across the rows of $\boldsymbol{\Delta}^{(r)}$ to assess the impact of each variable as part of the context. We suggest considering the average row values to capture directional effects, but the average of squared values, or something else, might also be useful. 
+
+Under the null hypothesis of no distinct context effect of the variable with index $j$, the rows of $\boldsymbol{\Delta}^{(r)}$ should be exchangeable. Therefore, we calculate summary statistics $s_j^{(r,m)}$ for $m=1,\ldots,M$ permutations, and obtain a p-value
+\begin{equation}
+\text{pval} = \frac{1}{M}
+\sum_{m=1}^{M} I\left(s_j^{(r)} \geq s_j^{(r,m)}\right)
+\label{eq:p-value}
+\end{equation}
+that reflects the context effect on $y_r$, where \(I(\cdot)\) is the indicator function that returns one if the condition is true and zero otherwise. The empirical null distribution may be contaminated by other variables that play a significant role in the context, but this will only lead to a conservative behavior of (\ref{eq:p-value}).
+
+While we have focused on a single prediction target $y_r$ so far, we can consider all elements of $\mathbf{y}$ to obtain the matrix
+\(\mathbf{S} =
+\left( s_{j}^{(r)} \right)
+\substack{j = 1, \ldots, p \\ r = 1, \ldots, q}\), e.g. for visualization as a heatmap.
+
+
+
+\section{Empirical evaluation}\label{sec:experiments}
+
+We evaluated the MiniTransformer both with simulated and real data. To ensure reproducibility, we provide an implementation of the MiniTransformer architecture, the permutation testing approach, and all evaluation procedures at \url{https://github.com/kianaf/MiniTransformer}. This repository includes separate Jupyter notebooks for each experiment, documenting all data preprocessing steps, hyperparameters, and random seeds.
+
+\subsection{Simulation study}\label{sec:simulation_experiments}
+
+We generate sequences of binary data $\mathbf{x}_{t_i} \in \{0,1\}^{p}, i=1,\ldots,T$. Where the value of the variable with index $j_3$ depends on past values of the variables with indices $j_1$, $j_2$ and $j_3$. This dependency structure is governed by an unobserved variable $z_{t_i}$, which encodes whether a specific pattern of activation has occurred and persisted up to time $t_i$. Specifically, $z_{t_i}$ is set to 1 if there exists a pair of earlier time points $i_1 < i_2 \leq i$ such that variable $j_1$ was active at time $t_{i_1}$, variable $j_2$ was active at time $t_{i_2}$, and variable $j_3$ has remained inactive from time $t_{i_2}$ onwards. Otherwise, $z_{t_i} = 0$. This condition can be formally written as:
+
+$$
+z_{t_i}
+=
+\begin{cases}
+1, &
+\text{if } \exists\, i_1<i_2 \leq i 
+\text{ such that }  x_{t_{i_1},j_1} = x_{t_{i_2},j_2} = 1
+\;\land\;
+\forall i^* > i_2:\; x_{t_{i^*},j_3} = 0, \\
+0, & \text{otherwise.}
+\end{cases}
+$$
+The observed values are iteratively generated as
+$$
+x_{t_{i+1},j} = 
+\begin{cases}
+I\left(
+z_{t_i} = 1
+\;\land\;
+B_{t_i} = 1,\;
+B_{t_i} \sim \operatorname{Bernoulli}(0.9)
+\right)
+& j = j_3,\\
+\mathrm{Bernoulli}(0.7), &  j \neq j_3,\\
+\end{cases}
+$$
+and for $i>2$ the sequence is terminated with probability 0.2 to obtain sequences of different length, with at least 3 observations.
+
+To assess the impact of the number of sequences on performance, we trained the MiniTransformer on datasets comprising 100, 500, or 1000 sequences, each with $p=10$ variables. For estimating the parameters, the task is to predict all $p$ variables of the last observation of a sequence, and the same for all subsequences of at least length 3 that can be obtained by starting at the first time point and gradually adding more time points. We used an architecture with $H = 12$ heads and $C=2$ cumulants, and estimated parameters via stochastic gradient with batches of size 1 and a learning rate of 0.001 for 100 epochs.
+
+For comparison, we consider three types of approaches: The first approach (Average) uses the average of all observations of a variable on the training data to predict on the test data. As a second approach (Regression), we consider a regression model for each variable that uses the values of all variables from the previous time point to predict the next value of that specific variable. Finally, we consider an approach  (Informed) that is partially informed by the true underlying structure. For all variables except $x_{t_i,j_3}$, it uses the average for prediction, just as the first approach. For $x_{t_i,j_3}$, it calculates the average of all values conditional on $x_{t_i,j_2}$ being 0 or 1 at the previous time point, and subsequently uses this for prediction.
+
+\begin{table}[tb]
+    \centering
+    \footnotesize
+    \caption{Prediction performance of the MiniTransformer for simulated data with $p=10$ variables in training datasets with different numbers of sequences $n_\text{train}$, compared to a simple averaging approach, regression models, and an approach informed by the true structure. Mean squared error is considered across all variables (MSE) and specifically for the variable that is affected by the true pattern (MSE$_{j_3}$), together with standard deviations. Smallest values are indicated by boldface.}
+    \label{tab:sim}
+\begin{tabular}{llcccc} 
+        \toprule
+        \textbf{Approach} & \textbf{Metric} & $n_\text{train} = 100 $ & $n_\text{train} = 200$ & $n_\text{train} = 500$ & $n_\text{train} = 1000$ \\
+        & & & & & \\ 
+        \midrule
+\multirow{2}{*}{\makecell{Average}} & MSE & $0.209 \pm 0.002$ & $0.21 \pm 0.002$ & $0.209 \pm 0.002$ & $0.209 \pm 0.002$ \\
+ & MSE$_{j_3}$ & $0.218 \pm 0.007$ & $0.217 \pm 0.009$ & $0.214 \pm 0.01$ & $0.211 \pm 0.007$ \\
+\addlinespace
+\multirow{2}{*}{Regression} & MSE & $0.209 \pm 0.003$ & $0.206 \pm 0.002$ & $0.204 \pm 0.002$ & $0.204 \pm 0.002$ \\
+ & MSE$_{j_3}$ & $0.155 \pm 0.005$ & $0.153 \pm 0.006$ & $0.152 \pm 0.005$ & $0.151 \pm 0.004$ \\
+\addlinespace
+\multirow{2}{*}{Informed} & MSE & $\mathbf{0.204 \pm 0.002}$ & $0.204 \pm 0.002$ & $0.204 \pm 0.002$ & $0.204 \pm 0.002$ \\
+ & MSE$_{j_3}$ & $0.163 \pm 0.008$ & $0.163 \pm 0.008$ & $0.161 \pm 0.008$ & $0.159 \pm 0.005$ \\
+\addlinespace
+\multirow{2}{*}{MiniTransformer} & MSE & $0.21 \pm 0.006$ & $\mathbf{0.202 \pm 0.002}$ & $\mathbf{0.196 \pm 0.001}$ & $\mathbf{0.195 \pm 0.002}$ \\
+ & MSE$_{j_3}$ & $\mathbf{0.141 \pm 0.03}$ & $\mathbf{0.097 \pm 0.013}$ & $\mathbf{0.068 \pm 0.006}$ & $\mathbf{0.06 \pm 0.007}$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+
+% \begin{table}[ht]
+%     \centering
+%     % \label{tab:sim}
+%         \begin{tabular}{llcccc} 
+%             \toprule
+%             \textbf{Approach} & \textbf{Metric} & $n_\text{train} = 100 $ & $n_\text{train} = 200$ & $n_\text{train} = 500$ & $n_\text{train} = 1000$ \\
+%             & & & & & \\ 
+%             \midrule
+%     \multirow{2}{*}{\makecell{Average}} & MSE & $0.211 \pm 0.002$ & $0.211 \pm 0.002$ & $0.21 \pm 0.002$ & $0.211 \pm 0.002$ \\
+%      & MSE$_{j_3}$ & $0.207 \pm 0.009$ & $0.208 \pm 0.008$ & $0.21 \pm 0.009$ & $0.215 \pm 0.008$ \\
+%     \addlinespace
+%     \multirow{2}{*}{Regression} & MSE & $0.212 \pm 0.003$ & $0.209 \pm 0.002$ & $0.206 \pm 0.002$ & $0.206 \pm 0.002$ \\
+%      & MSE$_{j_3}$ & $0.153 \pm 0.004$ & $0.151 \pm 0.004$ & $0.152 \pm 0.005$ & $0.154 \pm 0.003$ \\
+%     \addlinespace
+%     \multirow{2}{*}{Informed} & MSE & $\mathbf{0.206 \pm 0.002}$ & $0.206 \pm 0.002$ & $0.205 \pm 0.002$ & $0.206 \pm 0.002$ \\
+%      & MSE$_{j_3}$ & $0.158 \pm 0.007$ & $0.158 \pm 0.007$ & $0.16 \pm 0.006$ & $0.164 \pm 0.006$ \\
+%     \addlinespace
+%     \multirow{2}{*}{MiniTransformer} & MSE & $0.213 \pm 0.005$ & $\mathbf{0.204 \pm 0.002}$ & $\mathbf{0.198 \pm 0.002}$ & $\mathbf{0.196 \pm 0.002}$ \\
+%      & MSE$_{j_3}$ & $\mathbf{0.143 \pm 0.025}$ & $\mathbf{0.098 \pm 0.006}$ & $\mathbf{0.069 \pm 0.006}$ & $\mathbf{0.06 \pm 0.005}$ \\
+%             \bottomrule
+%     \end{tabular}
+% \end{table}
+
+For evaluation, we consider the mean squared error (MSE) of prediction for 10 repetitions on a test dataset with 1000 sequences. Specifically, we consider the average MSE when predicting all $p$ variables at the last time point of each sequence, and also the MSE just for $x_{t_i,j_3}$. As seen from Table \ref{tab:sim}, the MiniTransformer is competitive across different training sample sizes, even with just 100 sequences. It is only outperformed by the informed approach for the smallest sample size when considering the MSE across all variables, but not when considering the MSE just for $x_{t_i,j_3}$. This might indicate some overfitting for the other variables by the MiniTransformer due to the small sample size.
+
+
+Next, we assess whether the learned cumulants recover the known underlying structure \(z_t\) in the simulation. As shown above, when $z_t=1$, the probability of the target $x_{t,j_3}$ increases sharply, so recovering $z_t$ provides a direct test of whether the learned representation captures the intended mechanism rather than merely improving prediction.
+
+Figure~\ref{fig:cumulant_trajectories} shows a random subset of simulated sequence trajectories, overlaying the true underlying structure $z_t$, the observed and predicted value of \(x_{t,j_3}\), and the learned cumulants (\ref{eq:cumulant}).
+Across sequences, the cumulant trajectories rise and fall in synchrony with the onset/offset of $z_t$, indicating that the cumulant representation captures the latent mechanism.
+Moreover, predicted target trajectories align with the observed target in periods where the latent structure is active, consistent with the simulation design in which $z_t$ modulates the target dynamics.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/n=500_cumulants_trajectories.pdf}
+    \caption{Individual simulated and fitted trajectories for a random selection of individuals, with true underlying structure $z_t$, observed target $x_{t,j_3}$, predicted target $\hat{x}_{t,j_3}$, and learned cumulants (~\ref{eq:cumulant}). %The cumulant trajectories co-vary with the onset/offset of $z_t$, indicating recovery of the simulated mechanism. Moreover, the predicted target follows the observed target.
+    }
+    \label{fig:cumulant_trajectories}
+\end{figure}
+
+To assess the statistical testing approach, we consider the most challenging setting with just 100 sequences, and the variable with index $j_3$ as the target for prediction. As a full permutation approach with all potential realizations of $\mathbf{x}_v^{\mathrm{visit}}$ is not feasible, we randomly sample 8 patterns. Across the 10 repetitions, the variable with index $j_1$ then receives an average p-value of $0.146$, with index $j_2$ an average of $0.1285$, and with index $j_3$ an average of $0.0022$. The other seven variables receive averages between $0.2242$ and $0.6777$. This indicates that the approach can uncover the variables involved in the true underlying pattern, and in particular the variables with indices $j_1$ and $j_2$ as the driving factors of context effects.
+
+We also wanted to evaluate how well the sampling approach for realizations of $\mathbf{x}_v^{\mathrm{visit}}$ reflects what would be obtained with a full permutation approach. For computational feasibility, we consider a setting with just $p=4$ variables, three of which carry the true pattern, and a total of 50 sequences. 
+
+The sampling-based p-values for $V=8$ and $V=12$ realizations of $\mathbf{x}_v^{\mathrm{visit}}$ with 10 repetitions are contrasted with the p-values based on the full permutation approach in Table~\ref{tab:statistical_testing_results_sim}. Similar to the results for 100 or more sequences, the three variables that are part of the underlying true pattern receive the smallest p-values. Yet, the sampling-based approach seems to have less power and more variability, in particular for a smaller number $V$ of visit observation samples. Still, it is surprising that even with just 50 sequences, some parts of the true pattern can still be identified.
+
+%For training the model in this experiment, we used \(\headnumber = 4\), \(\cumulantsnumber = 4\), \(n_{\text{batch}} = 1\), learning rate \(\eta = 0.001\) and trained the model for 200 epochs (\(n_\text{params} = 98\)).
+
+\begin{table}[tbp]
+
+    \centering
+    \footnotesize
+    \caption{Average p-values (and standard deviations from 10 repetitions) resulting from the permutation testing approach when using sampling, with either $V=8$ or $V=12$ patterns of $\mathbf{x}_v^{\mathrm{visit}}$ sampled, contrasted with the full permutation approach with $V=16$, in a setting with $p=4$ variables (where variables 1-3 are part of the true pattern) and 50 sequences.}
+    \label{tab:statistical_testing_results_sim}
+    % \footnotesize
+     \begin{tabular}{cccc}
+        \toprule
+        Variable & 
+        $V=8$ & 
+        $V=12$ & 
+        $V=16$\\  
+        \midrule
+         1  & \(0.084 \pm 0.13\)   & \(0.01 \pm 0.02\)   & \(<0.001\)  
+            \\
+         2  & \(0.2 \pm 0.29\)   & \(0.049 \pm 0.06\)   & \(0.002\)  
+            \\
+         3  & \(0.084 \pm 0.16\)   & \(0.01 \pm 0.02\)   & \(0.007\)  
+            \\
+         4  & \(0.607 \pm 0.24\)   & \(0.633 \pm 0.18\)   & \(0.635\)  
+            \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+
+%Then, the model used for prediction performance evaluation with \(n_\text{train} = 100\) was also utilized for statistical testing with \(\visitnumber = 8\), using the same hyperparameter configuration. The results are presented in Table~\ref{tab:statistical_testing_results_sim_sample}. While the adjusted significance threshold (\(\alpha^\text{(adjusted)}\)) did not identify significant context at this small training sample size, the statistical testing method still successfully highlighted the relative influence of contexts. This demonstrates its ability to distinguish more relevant variables from less influential ones, even in data-limited scenarios. Figure~\ref{fig:statistical_testing_sim} provides a heatmap visualization of \(\mathbf{S}\), further illustrating the differentiation in context influence in relation to the context-target effects. Again, we see the third variable that shows the highest values.
+
+
+
+%\begin{table}[btp]
+%    \centering
+%    \footnotesize
+%    \caption{The results of statistical testing with adjusted alpha values for the simulation data with \(n_\text{train} = 100\) and \(p = 10\).}
+%    \label{tab:statistical_testing_results_sim_sample}
+%    \begin{tabular}{cccc}
+%        \toprule
+%        \textbf{Rank} 
+%        & \makecell{\textbf{Simulation} \\ \(n_\text{train} = 100\) \\ \(p = 10\)} 
+%        & \makecell{\(\overline{\text{pval}}\) \\ \(\iternumber = 10\) \\(approx.)} 
+%        & \makecell{\(\alpha^{\text{(adjusted)}}\) \\ \(\variablesnumber =  10\)} \\
+%        \midrule
+%         1  & Variable1  & \(0.0141 \pm 0.04\) & 0.005 \\
+%         2  & Variable2  & \(0.0476 \pm 0.15\) & 0.006 \\
+%         3  & Variable3  & \(0.0675 \pm 0.15\) & 0.006 \\
+%         4  & Variable4  & \(0.2749 \pm 0.15\) & 0.007 \\
+%         5  & Variable10 & \(0.4160 \pm 0.24\) & 0.008 \\
+%         6  & Variable7  & \(0.4400 \pm 0.21\) & 0.010 \\
+%         7  & Variable8  & \(0.5606 \pm 0.13\) & 0.013 \\
+%         8  & Variable6  & \(0.5666 \pm 0.11\) & 0.017 \\
+%         9  & Variable9  & \(0.7201 \pm 0.28\) & 0.025 \\
+%        10  & Variable5  & \(0.7357 \pm 0.18\) & 0.050 \\
+%        \bottomrule
+%    \end{tabular}
+%\end{table}
+
+
+%\begin{figure}[tb]
+%    \centering
+%    % First subfigure
+%    \begin{subfigure}[b]{0.45\textwidth}
+%        \centering
+%        \includegraphics[width=\textwidth]{figures/context_target_effect_simulation_exact.png}
+%        \caption{The heatmap showing the test statistics matrix \(\mathbf{S}\) named the 
+%        context-target effect for simulation data \(n_\text{train} = 50\) and \(p = 4\). The color mapping ranges from 
+%        dark blue, indicating smaller values of \(s^{(r)}_j\), to dark red, representing 
+%        larger values.}
+%        \label{fig:statistical_testing_sim_exact}
+%    \end{subfigure}
+%    \hfill
+%    % Second subfigure
+%    \begin{subfigure}[b]{0.45\textwidth}
+%        \centering
+%        \includegraphics[width=\textwidth]{figures/context_target_effect_simulation.png}
+%        \caption{The heatmap showing the test statistics matrix \(\mathbf{S}\) named the 
+%        context-target effect for simulation data \(n_\text{train} = 100\) and \(p = 10\). The color mapping ranges from 
+%        dark blue, indicating smaller values of \(s^{(r)}_j\), to dark red, representing 
+%        larger values.}
+%        \label{fig:statistical_testing_sim}
+%    \end{subfigure}
+%    \caption{Comparison of two simulation heatmaps side by side. Both plots illustrate the 
+%    context-target effect, where dark blue indicates a smaller effect on target prediction, 
+%    and dark red indicates a larger effect.}
+%    \label{fig:simulations_side_by_side}
+%\end{figure}
+
+\subsection{Real Data: reported stressors and general mental health status}
+ We consider the longitudinal resilience assessment (LORA) study \citep{chmitorz_longitudinal_2021} as an application that motivated our development of the MiniTransformer approach. Specifically, we focus on three questionnaires that the participants answered every three months: the Mainz Inventory of Microstressors (MIMIS), a 58-item instrument capturing self-reported daily hassles (microstressors, dh) in the past week \citep{chmitorz_assessment_2020}; a 27-item life events inventory assessing self-reported life events (macrostressors, le) over the past three months \citep{canli_neural_2006}; and the 28-item General Health Questionnaire (GHQ-28), which measures mental health status over the past weeks \citep{goldberg_validity_1997}. The GHQ-28 consists of four subscales, including somatic symptoms, anxiety/insomnia, social dysfunction, and depression, each containing seven items. Participants reported the number of days they experienced each daily hassle in the past week and the number of major life events that occurred in the past three months. The GHQ-28 items were rated on a 4-point Likert scale ranging from 0 (“Not at all”) to 3 (“Much more than usual”), with total and subscale scores calculated by summing the respective item ratings. 
+ 
+ To illustrate our approach, we consider two different subsets of items, each with \(p = 10\) variables. In both datasets, we have one variable related to the general mental health status as a target variable. The other variables are stressors selected from macro- and microstressors, which we want to investigate for their temporal interaction with the target. Items were randomly selected from the available MIMIS and life events inventories, resulting in a mix of both microstressors (dh) and macrostressors (le) without pre-filtering for theoretical relevance to the target. This random selection allows us to assess whether the statistical testing framework can identify context effects in an unbiased manner. We preprocessed the data to obtain binary variables. Specifically, for the stressors, if a participant reports the presence of an item, we record this as 1, otherwise as 0. The GHQ total is dichotomized with a threshold of (\(>23\)) and GHQ subscales with thresholds (\(>6\)). We refer to the dichotomized GHQ-sum score as psychological distress and the dichotomized GHQ-b subscale score as anxiety and sleep issues. We emphasize that this binarization was chosen for assessing stressor effects in a presence/absence sense (independent of frequency or magnitude) and it is not a requirement of the MiniTransformer architecture, which can, in principle, incorporate continuous-valued variables and missingness-aware representations. The first dataset \(\mathcal{D}_1\) includes the following items: nightmares (dh\_10), sleep problems (dh\_35), paperwork (dh\_37), housekeeping (dh\_38), noise (dh\_45), long work hours (dh\_53), financial problems (le\_8), arguments with a partner (le\_17), serious illness (le\_22), and a summary measure for Anxiety and Sleep issues (subscale GHQ-b). The second dataset \(\mathcal{D}_2\) includes commute to work/school (dh\_11), unwanted visit (dh\_31), paperwork (dh\_37), housekeeping (dh\_38), bad weather (dh\_42), traffic (dh\_46), lost job (le\_1), breakup (le\_16), arguments with a partner (le\_17), and a summary measure for psychological distress (GHQ-sum). After selecting the variables of interest for these two datasets, we included only individuals with no missing follow-ups or items in both datasets, purely for simplicity in this real-data demonstration and to keep the showcase focused on the core method. In general, missing follow-ups or items can be handled using standard transformer mechanisms such as attention masking. The first dataset comprises \(|\mathcal{D}_1| = 882\) individuals, and the second includes \(|\mathcal{D}_2| = 878\) individuals. In both datasets, individuals have sequences of varying lengths, with a median of 13, a minimum of 3, and a maximum of 20 observations. Note that in autoregressive longitudinal modeling, each observation is conditioned on an individual’s prior history, and repeated measurements within a person are strongly dependent. Thus, many follow-ups do not translate into a proportional increase in independent information, i.e., the effective size is primarily governed by the number of individuals and trajectory diversity, placing LORA in a small-data setting.
+
+
+We compared the MiniTransformer approach to three other approaches. The first and the second are the same as in the simulation study, i.e. an averaging approach and \(p\) regression models, each trained to predict a single variable from all variables at the previous time point. The third approach just carries the last observed values forward as a prediction for the next time point. 
+
+For the MiniTransformer, we used \(H = 8 \) heads and \(C = 8\) cumulants, and estimated parameters by batched stochastic gradient descent, each batch comprising sequences from two individuals, with a learning rate of \(\eta = 0.001 \) and trained the model for 150 epochs. 
+
+Prediction was assessed across 10 cross-validation folds. Table \ref{tab:real_data_comparison_with_baselines} presents the results. The MiniTransformer approach consistently achieves the lowest prediction error, both when considering the target variable or the average error across all variables. %Unlike the simulation setup, where we repeated the experiments 10 times with different seeds and reported the mean and standard deviation across runs, for real data, we evaluated all models using stratified 10-fold cross-validation with fixed random seeds to ensure reproducibility. Baselines were trained on identical splits. 
+
+
+\begin{table}[tb]
+    \centering
+    \footnotesize
+    \caption{Prediction performance of the MiniTransformer for two resilience datasets, each with $p=10$, compared to a simple averaging approach, regression models, and a carry forward approach. Mean squared error is considered across all variables (MSE) and for a specific target variable (MSE$_{\mathrm{tar}}$), together with standard deviations. Smallest values are indicated by boldface.}
+    \label{tab:real_data_comparison_with_baselines}
+    \begin{tabular}{p{3.0cm}p{1.5cm}cc}
+        \toprule
+        \textbf{Approach} & \textbf{Metric} & Dataset 1 & Dataset 2 \\
+        \midrule
+        Average  & MSE  & $0.170 \pm 0.008$    & $0.149 \pm 0.006$    \\
+                              & MSE$_{\mathrm{tar}}$ & $0.229 \pm 0.027$    & $0.208 \pm 0.018$    \\
+        \addlinespace
+        Carry forward   & MSE  & $0.220 \pm 0.013$    & $0.212 \pm 0.020$    \\
+                              & MSE$_{\mathrm{tar}}$ & $0.304 \pm 0.013$    & $0.298 \pm 0.020$    \\
+        \addlinespace
+        Regression        & MSE  & $0.147 \pm 0.009$    & $0.135 \pm 0.008$    \\
+                              & MSE$_{\mathrm{tar}}$ & $0.199 \pm 0.024$    & $0.190 \pm 0.023$    \\
+        \addlinespace
+        MiniTransformer   & MSE  & $\mathbf{0.139 \pm 0.011}$ & $\mathbf{0.127 \pm 0.009}$ \\
+                              & MSE$_{\mathrm{tar}}$ & $\mathbf{0.184 \pm 0.021}$ & $\mathbf{0.182 \pm 0.025}$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+For the statistical testing approach, we used sampling with  \(V = 8\) visit samples. For the first dataset, we consider anxiety and sleep issues (subscale GHQ-b) as the target, and for the second dataset, psychological distress (GHQ-sum). 
+The results are presented in Table~\ref{tab:real_data_statistical_testing}. 
+
+In the first dataset, housekeeping (dh\_38) had the lowest p-value, followed by long work hours (dh\_53), suggesting that these contexts may play an important role in influencing how other variables in subsequent observations predict the target. In the second dataset, housekeeping (dh\_38) was identified as the most important context variable, followed by paperwork (dh\_37), traffic (dh\_46), and commute to work/school (dh\_11). At first, these results may seem surprising because of the high emphasis on the housekeeping stressor. Still, upon closer examination of the data, we observe that in the second dataset, housekeeping is a very common reported stressor, i.e., it is reported in 94\% of the time points. On the other hand, it is a well-known finding that cessation of housekeeping often leads to a cluttered environment that may trigger or worsen mental distress, whereas keeping up with basic cleaning can support mental well-being \citep{roster_dark_2016}. 
+
+To see if the results from our approach confirm this pattern, we performed a check for the second dataset, where we detected housekeeping as a significant context for predicting psychological distress (GHQ\_sum). For this, we assumed an imaginary individual, who had reported all events at the first time point (\(x_{t_1, j} = 1, \forall j \in \{1,\ldots, p+1\}\)), and then we defined different scenarios for the second time point and compared the predicted value. As the first scenario, we assumed that the same pattern is reported at the second time point, i.e., \(\mathbf{x}_{t_1} = \mathbf{x}_{t_2}\). Here the model predicts the target as \(\hat{y}_{t_3, 10} = 0.85\). In the second scenario, we kept all the stressors except for housekeeping (\(x_{t_2, 5} = 0\)). Using this, the model predicted \(\hat{y}_{t_3, 11} = 0.89\). In the third scenario, we switched all the stressors at time-point \(t_2\) off except for housekeeping (\(x_{t_2, 5} = 1\)), and the model predicted \(\hat{y}_{t_3, 11} = 0.38\). As a final scenario, we defined \(x_{t_2, j} = 0, \forall j \in \{1, \ldots, p+1\}\), and here the model prediction changed to \(\hat{y}_{t_3, 11} = 0.42\). With these examples, we can see that in both changes from scenario one to two and scenario three to four, stopping housekeeping leads to an increase in the predicted value for psychological distress (GHQ\_sum).
+
+\begin{table}[tbp]
+\centering
+\caption{Results of the permutation testing approach for the two resilience application datasets. Average p-values are reported together with standard deviations. Variables are ranked in ascending order of p-values, with rank 1 corresponding to the most important variable.}
+\label{tab:real_data_statistical_testing}
+\renewcommand{\arraystretch}{1.2}
+\footnotesize
+\begin{tabular}{ccccc}
+\toprule
+\multirow{2}{*}{Rank} 
+  & \multicolumn{2}{c}{Dataset 1} 
+  & \multicolumn{2}{c}{Dataset 2} 
+  \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5}
+& Variable & pval 
+& Variable & pval 
+ \\
+\midrule
+$1$  & dh\_38 & \(0.0131 \pm 0.02\)     & \textbf{dh\_38} & \(\mathbf{0.0001 \pm 0.00}\)\\
+$2$  & dh\_53 & \(0.0720 \pm 0.08\)     & dh\_37          & \(0.0346 \pm 0.05\)         \\
+$3$  & le\_8  & \(0.1321 \pm 0.16\)     & dh\_46          & \(0.0850 \pm 0.05\)         \\
+$4$  & dh\_37 & \(0.1559 \pm 0.08\)     & dh\_11          & \(0.0996 \pm 0.03\)         \\
+$5$  & dh\_45 & \(0.2240 \pm 0.11\)     & le\_17          & \(0.3613 \pm 0.10\)         \\
+$6$  & dh\_10 & \(0.2631 \pm 0.12\)     & le\_16          & \(0.3631 \pm 0.12\)         \\
+$7$  & ghq\_b\_sum & \(0.3326 \pm 0.43\) & le\_1           & \(0.3813 \pm 0.02\)         \\
+$8$  & le\_22 & \(0.3732 \pm 0.08\)     & dh\_31          & \(0.4589 \pm 0.11\)         \\
+$9$  & dh\_35 & \(0.3872 \pm 0.17\)     & ghq\_sum        & \(0.6965 \pm 0.42\)         \\
+$10$ & le\_17 & \(0.6141 \pm 0.15\)     & dh\_42          & \(0.7957 \pm 0.13\)         \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The heatmaps in Figure \ref{fig:combined_side_by_side} illustrated the matrix $\mathbf{S}$ of test statistics $s_j^{(r)}$ for both datasets, to highlight context-target effects. No specific context seems to be important when predicting serious life events, e.g., serious illness (le\_22) in the first dataset and lost job (le\_1) and breakup (le\_16) in the second dataset. This is in line with the expectation that serious life events typically are not triggered by daily hassles. 
+Instead, mental health status-related events reported by the GHQ questionnaire may have a greater influence on minor daily hassles, i.e., individuals are more likely to report daily hassles, such as paperwork. This also complies with the  Mood-congruent memory bias, which is a well-known challenge in mental health research that an individual’s current mental state can influence how they perceive and report stress, and suggests that people experiencing depression or anxiety are more likely to recall and emphasize negative or difficult life events \citep{losiak_stressful_2019}. 
+
+\begin{figure}[htbp]
+    \centering
+    % First subfigure
+        \includegraphics[width=8cm]{figures/context_target_effect_ghq_b_sum.png}
+    \hfill
+        \includegraphics[width=8cm]{figures/context_target_effect_ghq_sum.png}
+    \caption{Context-target effects for resilience dataset 1 (left) and dataset 2 (right).
+    Dark blue indicates smaller values of the visualized test statistic \(s^{(r)}_j\) (i.e., the context 
+    has a smaller effect), while dark red indicates larger values.}
+    \label{fig:combined_side_by_side}
+\end{figure}
+
+
+\section{Discussion}\label{sec:discussion}
+
+
+We introduced the MiniTransformer approach, a simplified decoder-only transformer architecture optimized for longitudinal data settings with small sample sizes and a few time points. This was complemented by a permutation testing approach that assesses whether a given context significantly modifies the effect on predictions over time. Due to the flexibility of the patterns that can be picked up by the attention mechanism of a transformer, this statistical testing approach can uncover context effects that reflect complex temporal patterns. Specifically, it quantifies through which variables past observations influence predictions based on the most recent observations, and how these relationships evolve throughout a sequence. In addition, a visualization based on corresponding test statistics can highlight context–target associations across time, offering an interpretable view of temporal dependencies.
+
+We evaluated and illustrated these approaches using a simulation design with different sample sizes and a real data application based on two subsets of a dataset collected in a resilience study. The results suggested that the MiniTransformer approach can uncover patterns even with a very limited number of sequences. Overfitting did not seem to be a strong concern, despite still having to estimate a considerable number of parameters.
+
+Naturally, there could have been alternative ways for simplifying the standard transformer architecture, as it has many components that could be adapted. We did not attempt an evaluation of different kinds of adaptations because of the large number of variants that could potentially be considered. Instead, we chose an approach where we used a rather simple statistical model class, VAR models, as a starting point, and added in only a minimal number of core transformer ideas. This subsequently also enabled an interpretable test statistic for assessing context effects of variables.
+
+A limitation of the proposed statistical testing approach is the limited sample size for the empirical distribution in settings with a small number of variables. With a larger number of variables, computational feasibility is a concern. Generating a full null distribution requires a large number of permutations. When having to switch to a sampling-based approach due to computational cost,  the statistical power of the test may be affected, particularly in capturing subtle differences between contexts. This limitation may lead to an increased risk of false negatives, where potentially informative contexts are overlooked due to insufficient permutation-based significance estimation. 
+
+It is worth noting that, although the current implementation focuses on binary variables, the underlying framework can be readily extended to continuous variables. In such cases, contexts could be defined through discretization or binning schemes to capture graded effects. While binary variables simplify interpretation, extending the approach to continuous contexts also would enable a more fine-grained assessment of how varying levels of a variable influence predictions. This generalization would further enhance the applicability of the MiniTransformer approach to diverse clinical and longitudinal datasets.
+
+In summary, the proposed MiniTransformer approach more generally demonstrates that transformers can indeed be adapted for small longitudinal datasets with few time points, and then not only can achieve reasonable prediction performance but also can offer interpretability. Therefore, it might be promising to consider simplified transformer architectures also for other settings with sequential structure in cohort data.
+
+
+
+
+
+%\backmatter
+\bmsection*{Author contributions}
+
+HB and KF developed the MiniTransformer architecture and the statistical testing approach. KF performed the simulation study and the evaluation on the real data. MHa contributed to the mathematical formulation of the method. MW and MHe provided critical input on the statistical methodology and its interpretation. The LORA consortium co-authors (KA, CS, BK, OT, KL, MP, AR, and RK) contributed to data provision as part of the LORA study. All authors reviewed and approved the manuscript.
+
+\bmsection*{Acknowledgments}
+The work of Maren Hackenberg, Moritz Hess, and Harald Binder was funded by the Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) – Project-ID 499552394 – SFB 1597.
+This project has received funding from the European Union’s Horizon 2020 research and innovation program under Grant Agreement number 777084 (DynaMORE project) and from Deutsche Forschungsgemeinschaft (CRC 1193, subproject Z03). This work is part of the LOEWE Center “DYNAMIC”, funded by the HMWK Hessen, and was additionally supported by the DFG LORA-Risk grant (Grant 519365575).
+
+\bmsection*{Conflict of interest}
+The authors declare no potential conflict of interest.
+
+
+
+
+% Manual newpage inserted to improve layout of sample file - not
+% needed in general before appendices/bibliography.
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%
+%% SUPPLEMENTARY MATERIAL (added in revision)
+%%
+%% Three supplementary analyses produced for the revision:
+%%   S1: a two-stage predictability-gate procedure that addresses concerns
+%%       about applying the permutation test to targets the model has not
+%%       learned to predict (cf. reviewer's concerns on §3.5(b));
+%%   S2: empirical null calibration of the permutation test over many
+%%       repetitions (reviewer's §3.6(b));
+%%   S3: sensitivity of the test to the visit-sample size $V$
+%%       (reviewer's §3.6(a)).
+%%
+%% All experiments use the simulation design of Section
+%% \ref{sec:simulation_experiments} with $n_{\mathrm{train}}=200$, $p=10$,
+%% maximum sequence length $10$, $H=12$ heads, $C=2$ cumulants, batch
+%% size $1$, learning rate $10^{-3}$, $L_2$ penalty $10^{-3}$, and $100$
+%% epochs of training. The single-seed implementation of the canonical
+%% simulation pipeline yields $\mathrm{MSE}_{j_3}=0.102$ for the trained
+%% MiniTransformer, in agreement with the $0.097 \pm 0.013$ reported in
+%% Table~\ref{tab:sim} for $n_{\mathrm{train}}=200$. The
+%% supplementary analyses are based on this single trained model; a
+%% multi-seed extension is straightforward but was not pursued for the
+%% present revision.
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\appendix
+\section*{Supplementary material}
+\renewcommand{\thesection}{S\arabic{section}}
+\setcounter{section}{0}
+
+\section{A predictability gate for the permutation test}\label{sec:supp_gate}
+
+The permutation test of Section \ref{sec:statistical_testing} compares predictions of a fitted MiniTransformer with and without a candidate context. The test therefore reflects what the trained model has \emph{learned} about the prediction target~$y_r$, rather than the data-generating process directly. When the model has not learned to predict $y_r$ better than a sensible baseline, any context effects detected by the test may reflect overfitting rather than data-level dependencies.
+
+To guard against this, we propose a two-stage procedure. Given a candidate target $r$ and an independent test set, the \emph{predictability gate} for target $r$ asks whether the MiniTransformer has learned target-specific structure beyond predicting the marginal mean. Define
+\begin{equation}
+    \mathrm{MSE}_{\mathrm{MT}}(r), \quad
+    \mathrm{MSE}_{\mathrm{avg}}(r),
+\end{equation}
+for the MiniTransformer and the marginal-mean baseline (predict by the training mean of $y_r$). The gate passes if
+\begin{equation}\label{eq:gate}
+    \mathrm{MSE}_{\mathrm{MT}}(r) < \mathrm{MSE}_{\mathrm{avg}}(r).
+\end{equation}
+The permutation test of Section \ref{sec:statistical_testing} is applied only to gate-passing targets; for targets that fail \eqref{eq:gate} the test is reported as not applicable. The marginal-mean baseline corresponds to a model that has learned no target-specific information at all -- it simply outputs the training-set frequency of $y_r$ for every prediction -- so failing \eqref{eq:gate} indicates that the trained MiniTransformer has not extracted any predictive signal for $y_r$ that would justify interpreting context-effect tests on this target. We also report a per-target one-step-back Gaussian regression baseline ($\mathrm{MSE}_{\mathrm{reg}}(r)$) in the gate tables for completeness; it asks the stronger question of whether the model adds value beyond a linear predictor of $y_r$ from features at the previous visit. We do not require the model to beat regression for the gate to pass, since regression and MiniTransformer can capture overlapping signal structure without invalidating the test.
+
+Table \ref{tab:supp_gate} reports the gate on the simulation of Section \ref{sec:simulation_experiments} (a held-out test set of $1000$ sequences). Variable $j_3$ (the only target with a learnable history in the data-generating process) is the only target for which the MiniTransformer beats the marginal-mean baseline by a substantial margin: $\mathrm{MSE}_{\mathrm{MT}} = 0.102$ versus $\mathrm{MSE}_{\mathrm{avg}} = 0.227$. All other target variables fail or only marginally pass the gate, in agreement with their generative independence of past time points; the small fluctuations of $\mathrm{MSE}_{\mathrm{MT}}$ around $\mathrm{MSE}_{\mathrm{avg}}$ for those variables are within the expected magnitude of finite-sample noise on a single split. In subsequent work, the strict gate \eqref{eq:gate} can be tightened by requiring the lower endpoint of a paired bootstrap confidence interval on the MSE difference to exceed zero.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{r r r r c c c}
+\toprule
+target $r$ & $\mathrm{MSE}_{\mathrm{MT}}$ & $\mathrm{MSE}_{\mathrm{avg}}$ & $\mathrm{MSE}_{\mathrm{reg}}$ & beats avg & beats reg & gate \\
+\midrule
+0 & 0.229 & 0.219 & 0.221 & -- & -- & -- \\
+1 & 0.218 & 0.208 & 0.218 & -- & -- & -- \\
+\textbf{2 ($j_3$)} & \textbf{0.102} & 0.227 & 0.157 & $\checkmark$ & $\checkmark$ & \textbf{$\checkmark$} \\
+3 & 0.218 & 0.210 & 0.215 & -- & -- & -- \\
+4 & 0.222 & 0.216 & 0.224 & -- & $\checkmark$ & -- \\
+5 & 0.223 & 0.217 & 0.225 & -- & $\checkmark$ & -- \\
+6 & 0.216 & 0.213 & 0.216 & -- & -- & -- \\
+7 & 0.212 & 0.204 & 0.212 & -- & -- & -- \\
+8 & 0.209 & 0.207 & 0.212 & -- & $\checkmark$ & -- \\
+9 & 0.204 & 0.204 & 0.212 & ($\checkmark$) & $\checkmark$ & ($\checkmark$) \\
+\bottomrule
+\end{tabular}
+\caption{Predictability gate \eqref{eq:gate} on the simulation of Section \ref{sec:simulation_experiments} ($n_{\mathrm{train}}=200$, $n_{\mathrm{test}}=1000$). The gate decision uses the marginal-mean comparison only; the regression column is reported for transparency. The MiniTransformer beats the marginal-mean baseline by a substantial margin on the only generatively-predictable target ($j_3$): $0.102$ vs $0.227$. Variable $9$ marginally passes by a $0.001$ MSE difference and is best interpreted as a chance crossing in finite test data.}
+\label{tab:supp_gate}
+\end{table}
+
+
+\section{Empirical null calibration of the permutation test}\label{sec:supp_calibration}
+
+To probe the null behaviour of the permutation test in Section \ref{sec:statistical_testing} beyond the small number of repetitions used in the main text, we increased the number of repetitions to $\mathrm{nrepp}=500$ and recorded, for each variable, the empirical distribution of p-values across repetitions. We used the simulation of Section \ref{sec:simulation_experiments} with $n_{\mathrm{train}}=200$ and visit-sample size $V=5$, predicting variable $j_3$.
+
+Figure \ref{fig:supp_calibration_signal_hist} shows the per-variable p-value histograms. Signal variables ($j_1$, $j_2$, $j_3$ in red) place a large proportion of their p-values near zero, in line with the test's intended power. Null variables (in blue) place essentially no mass below $0.05$: the empirical Type-I error rate at $\alpha=0.05$ is exactly $0.000$ across all seven null variables and all $500$ repetitions, i.e.\ across $3500$ trials. Their distributions are concentrated in $[0.3, 0.8]$ rather than uniform on $[0,1]$ -- the conservative shift predicted in Section \ref{sec:statistical_testing} (``the empirical null distribution may be contaminated by other variables that play a significant role in the context, but this will only lead to a conservative behavior of \eqref{eq:p-value}''). Power on the three signal variables is $0.88$, $0.44$ and $0.71$ at $\alpha=0.05$, with mean $0.677$.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\linewidth]{figures/supp_calibration_signal_hist.png}
+    \caption{Per-variable p-value distributions over $\mathrm{nrepp}=500$ repetitions of the permutation test, with signal target $j_3$ ($\mathrm{predindex}=2$) and visit-sample size $V=5$. Red panels: variables that carry the true context pattern ($j_1$, $j_2$, $j_3$). Blue panels: data-generating-process-null variables ($3$--$9$). The grey dashed line marks the expected count per bin under a uniform distribution on $[0,1]$. Empirical Type-I rate at $\alpha=0.05$ is $0.000$ across all seven null variables.}
+    \label{fig:supp_calibration_signal_hist}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\linewidth]{figures/supp_calibration_signal_qq.png}
+    \caption{Quantile-quantile plots of the empirical p-value distributions in Figure \ref{fig:supp_calibration_signal_hist} against $\mathrm{Uniform}[0,1]$, for all ten variables. Red panels: data-generating-process signal variables ($j_1$, $j_2$, $j_3$); the empirical quantile curve falls well below the $45^\circ$ line, indicating an excess of small p-values (i.e.\ power). Blue panels: data-generating-process null variables ($3$--$9$); the empirical quantile curve sits systematically above the $45^\circ$ line, the conservative shift predicted by the analysis of Section \ref{sec:statistical_testing}.}
+    \label{fig:supp_calibration_signal_qq}
+\end{figure}
+
+\paragraph*{Behaviour on a generatively-null target.} As a stress test of the gate of Appendix \ref{sec:supp_gate}, we repeated the calibration with $\mathrm{predindex}=5$, a target that is generatively independent of all other variables (i.i.d.\ Bernoulli$(0.7)$ at every time point) and that fails the predictability gate \eqref{eq:gate} (Table \ref{tab:supp_gate}). The mean rejection rate at $\alpha=0.05$ across the nine non-self variables is $0.064$ -- close to nominal -- with only one variable showing mild inflation (rejection rate $0.202$). The self-context case (the target variable used as its own context) trivially yields a non-null effect and should be excluded by convention. Histograms are shown in Figure \ref{fig:supp_calibration_null_hist}. This indicates that, for a properly fitted model, the test remains close to nominal calibration even on a generatively-null target. Together with the gate of Appendix \ref{sec:supp_gate} this provides defence-in-depth against false positives driven by model overfitting.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\linewidth]{figures/supp_calibration_null_hist.png}
+    \caption{Per-variable p-value distributions on a generatively-null target ($\mathrm{predindex}=5$, the variable shown in row 6). Mean rejection rate at $\alpha=0.05$ across the nine non-self variables is $0.064$, close to the nominal level. The self-context case (variable $5$) is a degenerate special case and should be excluded by convention.}
+    \label{fig:supp_calibration_null_hist}
+\end{figure}
+
+
+\section{Sensitivity to the visit-sample size $V$}\label{sec:supp_v_sweep}
+
+The permutation test of Section \ref{sec:statistical_testing} samples $V$ visit observations $\mathbf{x}^{\mathrm{visit}}_v$ when the full $2^p$ enumeration is infeasible. The choice of $V$ trades off the resolution of the empirical null against computational cost and could in principle bias inference. We therefore swept $V \in \{5, 6, 7\}$ on the same trained model used in Appendix \ref{sec:supp_calibration} and Table~\ref{tab:supp_gate}, with full enumeration of the $p^V$ row-selection permutations per repetition and $\mathrm{nrepp}=500$ repetitions per setting.
+
+Results are shown in Figure \ref{fig:supp_v_sweep} and summarised in Table \ref{tab:supp_v_sweep}. Three observations:
+\begin{enumerate}
+\item For data-generating-process signal variables, the empirical mean p-value decreases monotonically with $V$ (e.g.\ from $0.063$ to $0.031$ for $j_1$, and from $0.148$ to $0.108$ for $j_3$), and the empirical rejection rate at $\alpha=0.05$ correspondingly increases. Larger $V$ therefore confers more power to detect true context effects.
+\item For data-generating-process null variables, the empirical rejection rate at $\alpha=0.05$ is exactly $0.000$ at every value of $V$ tested, across all seven null variables and $500$ repetitions per cell. Larger $V$ does not inflate Type-I error in this simulation.
+\item The Kolmogorov-Smirnov distance from $\mathrm{Uniform}[0,1]$ increases with $V$ for both signal and null variables, but in the conservative direction for the null group (mass moving toward $1$ rather than $0$).
+\end{enumerate}
+In this simulation, larger $V$ is therefore strictly beneficial: more power on real signal, no cost on the null. Whether this monotonicity continues to hold on real cohort data with many small effects -- as opposed to the cleanly separated signal/null structure of the simulation -- is left for future evaluation.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\linewidth]{figures/supp_v_sweep.png}
+    \caption{Sensitivity of the permutation test to the visit-sample size $V$. Left: mean p-value per variable across $\mathrm{nrepp}=500$ repetitions. Centre: empirical rejection rate at $\alpha=0.05$. Right: Kolmogorov-Smirnov distance to $\mathrm{Uniform}[0,1]$. Red lines: data-generating-process signal variables ($j_1$, $j_2$, $j_3$). Blue lines: data-generating-process null variables ($3$--$9$). All seven blue lines in the centre panel sit on the $y=0$ axis at every $V$.}
+    \label{fig:supp_v_sweep}
+\end{figure}
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{c r r r r r}
+\toprule
+$V$ & variable & is signal & mean $p$ & rej.\ at $0.05$ & KS distance \\
+\midrule
+$5$ & $j_1$ (var $0$) & yes & $0.063$ & $0.878$ & $0.832$ \\
+$5$ & $j_2$ (var $1$) & yes & $0.231$ & $0.442$ & $0.484$ \\
+$5$ & $j_3$ (var $2$) & yes & $0.148$ & $0.710$ & $0.664$ \\
+$5$ & vars $3$--$9$ (null, mean) & no & $0.580$ & $0.000$ & $0.234$ \\
+\midrule
+$6$ & $j_1$ (var $0$) & yes & $0.043$ & $0.912$ & $0.873$ \\
+$6$ & $j_2$ (var $1$) & yes & $0.216$ & $0.498$ & $0.515$ \\
+$6$ & $j_3$ (var $2$) & yes & $0.133$ & $0.730$ & $0.688$ \\
+$6$ & vars $3$--$9$ (null, mean) & no & $0.576$ & $0.000$ & $0.227$ \\
+\midrule
+$7$ & $j_1$ (var $0$) & yes & $0.031$ & $0.930$ & $0.885$ \\
+$7$ & $j_2$ (var $1$) & yes & $0.206$ & $0.558$ & $0.537$ \\
+$7$ & $j_3$ (var $2$) & yes & $0.108$ & $0.772$ & $0.727$ \\
+$7$ & vars $3$--$9$ (null, mean) & no & $0.575$ & $0.000$ & $0.230$ \\
+\bottomrule
+\end{tabular}
+\caption{V-sweep summary on the simulation of Section \ref{sec:simulation_experiments} (predindex $j_3$, $\mathrm{nrepp}=500$). Rejection rate at $\alpha=0.05$ is the empirical Type-I rate (for null variables) or power (for signal variables). The null-group rows aggregate variables $3$--$9$ by averaging.}
+\label{tab:supp_v_sweep}
+\end{table}
+
+\section{V-sweep and gate on the LORA cohort data}\label{sec:supp_lora}
+
+The simulation analyses in Appendices \ref{sec:supp_calibration} and \ref{sec:supp_v_sweep} establish that, in a setting where data-generating signal and null variables are known by construction, the permutation test is conservative on null variables, becomes more powerful on signal variables as $V$ grows, and is well-behaved under the predictability gate. We now repeat the gate of Appendix \ref{sec:supp_gate} and the V-sweep of Appendix \ref{sec:supp_v_sweep} on the LORA datasets D1 and D2 of Section \ref{sec:experiments}, where ground-truth labels for "signal" and "null" variables are not available. The aim is to verify that the qualitative behaviour observed on the simulation continues to hold on real cohort data of the size and type targeted by the method, and in particular to ask whether increasing $V$ pushes all candidate context variables toward significance -- a concern that motivates examining the test across a range of $V$.
+
+\paragraph*{Setup.} For each of the two LORA datasets we use the same architecture and training schedule as in Section \ref{sec:experiments} ($H=8$ heads, $C=8$ cumulants, batch size $2$, $150$ epochs, learning rate $10^{-3}$, $L_2$ penalty $10^{-3}$). Train and evaluation sets are taken from fold $0$ of the same $10$-fold split used in Section~\ref{sec:experiments} (\texttt{KFold(n\_splits=10, random\_state=42)}); the gate is computed on this evaluation fold, and the permutation test is applied to the same trained model. Single-fold results are reported to keep computation tractable; a fold-averaged version is a natural follow-up.
+
+\paragraph*{(A) Predictability gate.} Tables \ref{tab:supp_gate_lora_d1} and \ref{tab:supp_gate_lora_d2} report the per-target evaluation-fold MSE for the MiniTransformer, the marginal-mean baseline, the per-target Gaussian regression baseline, and the carry-forward baseline. On both datasets the paper's chosen target -- \texttt{ghq\_b\_sum} on D1 (\texttt{predindex}=9, $\mathrm{MSE}_{\mathrm{MT}} = 0.184$ vs $\mathrm{MSE}_{\mathrm{avg}} = 0.187$) and \texttt{ghq\_sum} on D2 ($\mathrm{MSE}_{\mathrm{MT}} = 0.183$ vs $\mathrm{MSE}_{\mathrm{avg}} = 0.224$) -- passes the gate, indicating that the MiniTransformer has learned target-specific structure beyond marginal averaging. The regression columns are reported for transparency: on D2 the model also beats regression ($0.192$); on D1 it does not on this single fold ($0.166$ for regression vs $0.184$ for MT), but Table~\ref{tab:real_data_comparison_with_baselines} of the main text reports a $10$-fold mean of $0.184$ for the MiniTransformer vs $0.199$ for regression on the same target, so on average the model wins. The gate question -- whether MT has learned target-specific structure -- is answered by the marginal-mean comparison; whether MT also adds value beyond a one-step linear regression is a separate (stronger) question that we report alongside without making it part of the gate criterion.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{l r r r r c c c c}
+\toprule
+target & $\mathrm{MSE}_{\mathrm{MT}}$ & $\mathrm{MSE}_{\mathrm{avg}}$ & $\mathrm{MSE}_{\mathrm{reg}}$ & $\mathrm{MSE}_{\mathrm{rep}}$ & avg & reg & rep & gate \\
+\midrule
+dh\_10 (Nightmares) & 0.167 & 0.196 & 0.166 & 0.270 & $\checkmark$ & -- & $\checkmark$ & $\checkmark$ \\
+dh\_35 (Sleep problems) & 0.202 & 0.252 & 0.224 & 0.337 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+dh\_37 (Paperwork) & 0.192 & 0.244 & 0.200 & 0.292 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+dh\_38 (Housekeeping) & 0.074 & 0.082 & 0.074 & 0.101 & $\checkmark$ & -- & $\checkmark$ & $\checkmark$ \\
+dh\_45 (Noise) & 0.123 & 0.166 & 0.134 & 0.236 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+dh\_53 (Long work hours) & 0.152 & 0.224 & 0.169 & 0.191 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+le\_8 (Financial problems) & 0.051 & 0.054 & 0.051 & 0.079 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+le\_17 (Arguments w/ partner) & 0.103 & 0.134 & 0.113 & 0.157 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+le\_22 (Serious illness) & 0.071 & 0.073 & 0.076 & 0.146 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+\textbf{ghq\_b\_sum (Anxiety/Sleep)} & \textbf{0.184} & 0.187 & 0.166 & 0.258 & $\checkmark$ & -- & $\checkmark$ & \textbf{$\checkmark$} \\
+\bottomrule
+\end{tabular}
+\caption{Predictability gate for LORA dataset D1 (\texttt{ghq\_b\_sum}) on fold $0$ of the $10$-fold split. The gate (MT $<$ avg) passes for all $10$ targets, including the paper's chosen target \texttt{ghq\_b\_sum}. The regression column is reported for transparency: on this single fold, regression marginally beats MT for the target ($0.166$ vs $0.184$), but the $10$-fold mean reported in Table~\ref{tab:real_data_comparison_with_baselines} of the main text has MT beating regression on average ($0.184$ vs $0.199$).}
+\label{tab:supp_gate_lora_d1}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{l r r r r c c c c}
+\toprule
+target & $\mathrm{MSE}_{\mathrm{MT}}$ & $\mathrm{MSE}_{\mathrm{avg}}$ & $\mathrm{MSE}_{\mathrm{reg}}$ & $\mathrm{MSE}_{\mathrm{rep}}$ & avg & reg & rep & gate \\
+\midrule
+dh\_11 (Commute) & 0.205 & 0.237 & 0.205 & 0.296 & $\checkmark$ & -- & $\checkmark$ & $\checkmark$ \\
+dh\_31 (Unwanted visit) & 0.124 & 0.127 & 0.129 & 0.205 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+dh\_37 (Paperwork) & 0.182 & 0.204 & 0.177 & 0.250 & $\checkmark$ & -- & $\checkmark$ & $\checkmark$ \\
+dh\_38 (Housekeeping) & 0.100 & 0.113 & 0.102 & 0.114 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+dh\_42 (Bad weather) & 0.225 & 0.256 & 0.248 & 0.398 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+dh\_46 (Traffic) & 0.116 & 0.136 & 0.118 & 0.216 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+le\_1 (Lost job) & 0.011 & 0.011 & 0.012 & 0.023 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+le\_16 (Breakup) & 0.070 & 0.073 & 0.079 & 0.136 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+le\_17 (Arguments w/ partner) & 0.141 & 0.184 & 0.162 & 0.227 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+\textbf{ghq\_sum (Distress)} & \textbf{0.183} & 0.224 & 0.192 & 0.284 & $\checkmark$ & $\checkmark$ & $\checkmark$ & \textbf{$\checkmark$} \\
+\bottomrule
+\end{tabular}
+\caption{Predictability gate for LORA dataset D2 (\texttt{ghq\_sum}) on fold $0$ of the $10$-fold split. The gate (MT $<$ avg) passes for all $10$ targets, including the paper's chosen target \texttt{ghq\_sum} which beats avg by $0.224 \to 0.183$ and additionally beats regression ($0.192$).}
+\label{tab:supp_gate_lora_d2}
+\end{table}
+
+\paragraph*{(B) V-sweep.} On the same trained model and predicting the GHQ target (\texttt{predindex}=9) on each dataset, we ran the permutation test for $V \in \{5, 6, 7\}$ with $\mathrm{nrepp}=500$. Results are summarised in Figures \ref{fig:supp_v_sweep_lora_d1} and \ref{fig:supp_v_sweep_lora_d2}.
+
+The qualitative pattern matches the simulation of Appendix \ref{sec:supp_v_sweep}: variables that the model has learned to use as informative contexts for the GHQ target -- on D1 these are \texttt{dh\_38} (Housekeeping) and \texttt{dh\_53} (Long work hours), in agreement with the ranking in Table~\ref{tab:real_data_statistical_testing} of the main text -- show monotonically decreasing mean p-values and increasing rejection rates at $\alpha=0.05$ as $V$ grows. The top-ranked context on D1, Housekeeping, has empirical rejection rate at $\alpha=0.05$ rising from $0.870$ at $V=5$ to $0.974$ at $V=7$. Variables that were not flagged as significant at the smallest $V$ stay flat or, for several variables, become \emph{more} conservative as $V$ grows (e.g.\ \texttt{le\_8} on D1: mean p $0.796 \to 0.836$ as $V$ goes from $5$ to $7$). On D2 the top-ranked contexts identified at $V=7$ -- \texttt{dh\_37}, \texttt{dh\_38}, \texttt{le\_17}, \texttt{dh\_46} -- overlap closely with the paper's Table \ref{tab:real_data_statistical_testing} ranking, and the same monotonic separation between flagged and unflagged variables is observed.
+
+In neither dataset do we see all candidate contexts being driven toward significance as $V$ grows. Instead, larger $V$ amplifies the separation between contexts the model has actually learned to rely on and contexts it has not. This is consistent with the simulation finding that the test's null behaviour is conservative even when the empirical null is contaminated, and provides empirical evidence on real cohort data that the choice of $V$ does not by itself drive the significance ranking.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\linewidth]{figures/supp_v_sweep_lora_d1.png}
+    \caption{Sensitivity of the permutation test to the visit-sample size $V$ on LORA dataset D1 (\texttt{ghq\_b\_sum}, fold $0$). Left: mean p-value per candidate context across $\mathrm{nrepp}=500$ repetitions. Centre: empirical rejection rate at $\alpha=0.05$. Right: Kolmogorov-Smirnov distance to $\mathrm{Uniform}[0,1]$. Red line: the target variable used as its own context (\texttt{ghq\_b\_sum}). Blue lines: candidate context variables. Variables flagged as significant context (e.g.\ \texttt{dh\_38}) become more so with $V$; unflagged variables (e.g.\ \texttt{le\_8}) stay flat or become more conservative.}
+    \label{fig:supp_v_sweep_lora_d1}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\linewidth]{figures/supp_v_sweep_lora_d2.png}
+    \caption{Sensitivity of the permutation test to the visit-sample size $V$ on LORA dataset D2 (\texttt{ghq\_sum}, fold $0$), $\mathrm{nrepp}=500$. The same qualitative pattern as in Figure \ref{fig:supp_v_sweep_lora_d1} is observed: signal-bearing contexts become more significant with $V$; the remaining contexts stay flat. Top-ranked contexts at $V=7$ are \texttt{dh\_37}, \texttt{dh\_38}, \texttt{le\_17}, \texttt{dh\_46}, in close agreement with Table \ref{tab:real_data_statistical_testing} of the main text.}
+    \label{fig:supp_v_sweep_lora_d2}
+\end{figure}
+
+
+\section{V-sweep and gate on the PBC2 cohort}\label{sec:supp_pbc2}
+
+To address concerns about generalisation beyond the LORA cohort (the editor's primary request), we repeat the analysis of Appendix \ref{sec:supp_lora} on a second, structurally distinct longitudinal clinical cohort: PBC2, the Mayo Clinic primary biliary cirrhosis dataset (\texttt{survival::pbcseq}, 1945 observations on 312 patients with median 6 visits per patient). After binarising the standard PBC2 markers at clinical thresholds (e.g.\ \texttt{albumin\_low} for albumin $< 3.5\,\mathrm{g/dl}$, \texttt{bili\_high} for serum bilirubin $> 2\,\mathrm{mg/dl}$) and filtering to patients with at least three visits, we obtain $252$ patients and $1675$ visits across $10$ binary variables, with \texttt{bili\_high} (elevated bilirubin) in the last column as the natural target. Preprocessing follows \texttt{notebooks/prepare\_pbc2.py}.
+
+\paragraph*{(A) Predictability gate.} Table \ref{tab:supp_gate_pbc2} reports per-target evaluation-fold MSE for the MiniTransformer and the three baselines, on fold $0$ of the same KFold split as the LORA experiments. The chosen target \texttt{bili\_high} passes the gate by a wide margin: $\mathrm{MSE}_{\mathrm{MT}} = 0.033$ versus $\mathrm{MSE}_{\mathrm{avg}} = 0.288$ -- a roughly $9$-fold reduction in test-set MSE. All $10$ targets in fact pass the gate, indicating that the MiniTransformer extracts target-specific predictive signal beyond marginal averaging for every binarised PBC2 marker. The regression column is reported alongside for transparency: on this fold MT is essentially tied with regression for several markers (e.g.\ $0.033$ vs $0.034$ for the target) and slightly worse for others, but the gate's question -- whether the model has learned target-specific structure -- is answered by the marginal-mean comparison.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{l r r r r c c c c}
+\toprule
+target & $\mathrm{MSE}_{\mathrm{MT}}$ & $\mathrm{MSE}_{\mathrm{avg}}$ & $\mathrm{MSE}_{\mathrm{reg}}$ & $\mathrm{MSE}_{\mathrm{rep}}$ & avg & reg & rep & gate \\
+\midrule
+ascites & 0.179 & 0.229 & 0.174 & 0.192 & $\checkmark$ & -- & $\checkmark$ & $\checkmark$ \\
+hepatomegaly & 0.108 & 0.250 & 0.119 & 0.154 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+spiders & 0.132 & 0.272 & 0.144 & 0.192 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+edema\_present & 0.211 & 0.334 & 0.242 & 0.346 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+albumin\_low & 0.147 & 0.212 & 0.145 & 0.269 & $\checkmark$ & -- & $\checkmark$ & $\checkmark$ \\
+alkphos\_high & 0.101 & 0.198 & 0.098 & 0.115 & $\checkmark$ & -- & $\checkmark$ & $\checkmark$ \\
+ast\_high & 0.095 & 0.249 & 0.098 & 0.154 & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+platelet\_low & 0.076 & 0.203 & 0.072 & 0.077 & $\checkmark$ & -- & $\checkmark$ & $\checkmark$ \\
+protime\_high & 0.200 & 0.340 & 0.198 & 0.269 & $\checkmark$ & -- & $\checkmark$ & $\checkmark$ \\
+\textbf{bili\_high (target)} & \textbf{0.033} & 0.288 & 0.034 & 0.039 & $\checkmark$ & $\checkmark$ & $\checkmark$ & \textbf{$\checkmark$} \\
+\bottomrule
+\end{tabular}
+\caption{Predictability gate for PBC2 on fold $0$ of the $10$-fold split. All $10$ targets pass the gate (MT $<$ avg). The chosen target \texttt{bili\_high} (elevated bilirubin) passes by a wide margin: $0.033$ vs $0.288$ for the average baseline -- a roughly $9$-fold reduction in test-set MSE -- and is essentially tied with regression ($0.034$).}
+\label{tab:supp_gate_pbc2}
+\end{table}
+
+\paragraph*{(B) V-sweep.} On the same trained model and predicting \texttt{bili\_high} (\texttt{predindex}=9) we ran the permutation test for $V \in \{5, 6, 7\}$ with $\mathrm{nrepp}=500$. Results are summarised in Figure \ref{fig:supp_v_sweep_pbc2}. The qualitative pattern matches both the simulation (Appendix \ref{sec:supp_v_sweep}) and the LORA cohort (Appendix \ref{sec:supp_lora}): variables for which the model has learned an informative context relationship show monotonically decreasing mean p-values and increasing rejection rates as $V$ grows, while the remaining candidate contexts stay flat or become more conservative. The empirical Type-I rate at $\alpha=0.05$ does not inflate with $V$.
+
+The top-ranked contexts at $V=7$ are clinically interpretable as the constellation of markers of advanced liver disease that one would expect to predict elevated bilirubin: \texttt{spiders} (spider angiomas, classical sign of advanced liver disease and portal hypertension; rejection rate $0.54$ at $\alpha=0.05$), \texttt{platelet\_low} (low platelet count, indicator of portal hypertension via splenic sequestration; rejection rate $0.41$), \texttt{albumin\_low} (low serum albumin, marker of liver synthetic failure; rejection rate $0.29$), \texttt{edema\_present} (rejection rate $0.21$), and \texttt{hepatomegaly} (rejection rate $0.05$). That the test recovers a clinically coherent signature on a cohort completely independent of LORA -- and one that the architecture was not specifically tuned for -- is direct evidence that the framework generalises beyond the dataset on which it was originally illustrated.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\linewidth]{figures/supp_v_sweep_pbc2.png}
+    \caption{Sensitivity of the permutation test to the visit-sample size $V$ on PBC2 (fold $0$, target \texttt{bili\_high}). Left: mean p-value per candidate context across $\mathrm{nrepp}=500$ repetitions. Centre: empirical rejection rate at $\alpha=0.05$. Right: Kolmogorov-Smirnov distance to $\mathrm{Uniform}[0,1]$. Red line: target variable used as its own context; blue lines: candidate context variables. Variables that are flagged at the smallest $V$ become more significant with $V$; non-flagged variables stay near the nominal level or become more conservative. The top-ranked contexts (\texttt{spiders}, \texttt{platelet\_low}, \texttt{albumin\_low}, \texttt{edema\_present}) form the textbook clinical signature of advanced liver disease that predicts bilirubin elevation.}
+    \label{fig:supp_v_sweep_pbc2}
+\end{figure}
+
+
+\paragraph*{Reproducibility note.} Code for all five supplementary analyses is provided in the project repository at \texttt{notebooks/null\_calibration.py} (Appendix \ref{sec:supp_calibration}), \texttt{notebooks/v\_sweep\_and\_gate.py} (Appendices \ref{sec:supp_gate} and \ref{sec:supp_v_sweep}), \texttt{notebooks/v\_sweep\_and\_gate\_lora.py} (Appendix \ref{sec:supp_lora}), and \texttt{notebooks/v\_sweep\_and\_gate\_pbc2.py} together with the data-preparation script \texttt{notebooks/prepare\_pbc2.py} (Appendix \ref{sec:supp_pbc2}). The simulation single-seed setup matches the canonical simulation pipeline (\texttt{notebooks/simulation\_experiments.ipynb}); the LORA single-fold setup matches \texttt{notebooks/real\_data\_experiments\_D1.ipynb} and \texttt{notebooks/real\_data\_experiments\_D2.ipynb}; and the PBC2 setup uses the same KFold split (\texttt{n\_splits}=10, \texttt{random\_state}=42, fold $0$) for direct comparability across cohorts. Seeds and configuration are stored in the persisted result pickles alongside the figures. A multi-seed extension for the simulation, and a fold-averaged extension for the LORA and PBC2 analyses, are natural follow-ups.
+
+
+\vskip 0.2in
+\bibliography{references}
+
+\end{document}

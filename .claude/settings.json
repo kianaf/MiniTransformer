@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /Users/farhadyar/Nextcloud/lora_data_share_freiburg/preprocessed/ 2>&1 | head -10)",
+      "Read(//Users/farhadyar/Nextcloud/lora_data_share_freiburg/preprocessed/**)"
+    ]
+  }
+}

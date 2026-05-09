@@ -44,14 +44,15 @@ def get_context_predindex_pair_effect(model, p, context, targetall):
 
 
 
-def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample_size):
-    
+def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample_size,
+                        return_pval_mat=False, seed=123456789):
+
     """Perform statistical testing to evaluate the significance of feature interactions.
-    
+
     This function conducts statistical tests to analyze how different features interact
     and influence predictions in the model. It uses a combination of context and target
     sequences to measure these effects.
-    
+
     Args:
         model (nn.Module): The trained model to evaluate
         train_dataset (list[torch.Tensor]): Training data sequences used for sampling
@@ -59,15 +60,19 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
         predindex (int): Index of the target feature for predictions
         nrepp (int): Number of repetitions for the statistical test
         target_sample_size (int): Number of target sequences to sample
-    
-    Returns:
-        torch.Tensor: Matrix of p-values indicating significance of feature interactions,
-            with shape (p, nrepp)
-    """
-    
+        return_pval_mat (bool): If True, also return the full (p, nrepp) p-value matrix
+            in addition to the aggregated statistics. Useful for calibration analyses
+            (e.g. histograms / Q-Q plots over repetitions). Defaults to False.
+        seed (int): RNG seed used for the visit-sample draws inside the loop. Defaults
+            to 123456789 for backwards compatibility.
 
-    seed = int(123456789)
-    torch.manual_seed(seed) 
+    Returns:
+        Tuple of (avepval, stdpval, context, targetall) -- and additionally pval_mat
+        if return_pval_mat=True.
+    """
+
+
+    torch.manual_seed(int(seed))
     
     torch.set_grad_enabled(False)  # Disable gradient computation
     
@@ -147,6 +152,8 @@ def statistical_testing(model, train_dataset, p, predindex, nrepp, target_sample
         
     torch.set_grad_enabled(True)  # Re-enable gradient computation
 
+    if return_pval_mat:
+        return avepval, stdpval, context, targetall, pval_mat
     return avepval, stdpval, context, targetall
 
    
@@ -494,22 +501,34 @@ def plot_context_predindex_pair_effect(context_predindex_pair_effect, data_str, 
             "le_22: Serious illness",
             "ghq_b_sum: Anxiety & sleep issues"
         ]
-    else: 
-        if data_str == "ghq_sum":
-            variable_names = [
-                "dh_11: Commute to work/school",
-                "dh_31: Unwanted visit",
-                "dh_37: Paperwork",
-                "dh_38: Housekeeping",
-                "dh_42: Bad weather",
-                "dh_46: Traffic",
-                "le_1: Lost job",
-                "le_16: Breakup",
-                "le_17: Arguments with partner",
-                "ghq_sum: Psychological distress"
-            ]
-        else:
-            variable_names = [f"Variable {i+1}" for i in range(context_predindex_pair_effect.shape[0])]
+    elif data_str == "ghq_sum":
+        variable_names = [
+            "dh_11: Commute to work/school",
+            "dh_31: Unwanted visit",
+            "dh_37: Paperwork",
+            "dh_38: Housekeeping",
+            "dh_42: Bad weather",
+            "dh_46: Traffic",
+            "le_1: Lost job",
+            "le_16: Breakup",
+            "le_17: Arguments with partner",
+            "ghq_sum: Psychological distress"
+        ]
+    elif data_str == "pbc2":
+        variable_names = [
+            "hepatomegaly",
+            "spiders",
+            "edema_present",
+            "albumin_low",
+            "alkphos_high",
+            "ast_high",
+            "platelet_low",
+            "protime_high",
+            "bili_high",
+            "ascites (target)",
+        ]
+    else:
+        variable_names = [f"Variable {i+1}" for i in range(context_predindex_pair_effect.shape[0])]
 
     # Plot the context-predindex pair effect
 
