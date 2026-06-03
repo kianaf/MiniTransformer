@@ -164,12 +164,15 @@ def generate_latex_table(data, label="tab:statistical_testing_results_sim"):
 
 
 def main():
-    script_dir = Path(__file__).parent
-    results_dir = script_dir / "statistical_testing"
+    # This script lives at notebooks/experiments/tables/, but the
+    # statistical_testing/ inputs and the .tex output live under notebooks/,
+    # so resolve the notebooks dir two levels up.
+    notebooks_dir = Path(__file__).parents[2]
+    results_dir = notebooks_dir / "statistical_testing"
 
     # --- Configuration: input file and output path ---
     input_file = results_dir / "statistical_testing_simulation_results_n=50_batch_size=1_p=4_ncum=4_nheads=4_epochs=200_seed=12345.txt"
-    output_file = script_dir / "statistical_testing_table.tex"
+    output_file = notebooks_dir / "statistical_testing_table.tex"
 
     if not input_file.exists():
         print(f"Error: file not found: {input_file}", file=sys.stderr)

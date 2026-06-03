@@ -31,7 +31,7 @@ import sys
 import time
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-_PROJECT_ROOT = os.path.abspath(os.path.join(_THIS_DIR, ".."))
+_PROJECT_ROOT = os.path.abspath(os.path.join(_THIS_DIR, "..", "..", ".."))
 os.chdir(_PROJECT_ROOT)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
@@ -164,7 +164,7 @@ def run_real(data_str):
         # Overwrite the ascites column with the synthetic j1 -> j2 -> j3 target,
         # matching notebooks/pbc2_controlled_simulation.py (seed=42 to keep the
         # injection deterministic across runs that use this substrate).
-        from pbc2_controlled_simulation import inject_synthetic_target
+        from src.pbc2_substrate import inject_synthetic_target
         tensors, _z, _y = inject_synthetic_target(tensors, seed=42)
     n_total = len(tensors)
     p = tensors[0].shape[1]
