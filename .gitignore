@@ -25,6 +25,6 @@ MiniTransformer.pdf
 texput.log
 
 # Claude Code temp worktrees
-.claude/worktrees/
+.claude/
 minitransformer_paper
 
