@@ -164,10 +164,10 @@ def generate_latex_table(data, label="tab:statistical_testing_results_sim"):
 
 
 def main():
-    # This script lives at notebooks/experiments/tables/, but the
-    # statistical_testing/ inputs and the .tex output live under notebooks/,
-    # so resolve the notebooks dir two levels up.
-    notebooks_dir = Path(__file__).parents[2]
+    # This script lives at experiments/tables/, but the statistical_testing/
+    # inputs and the .tex output live under notebooks/ at the repo root
+    # (parents[2]).
+    notebooks_dir = Path(__file__).parents[2] / "notebooks"
     results_dir = notebooks_dir / "statistical_testing"
 
     # --- Configuration: input file and output path ---

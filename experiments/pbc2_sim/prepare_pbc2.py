@@ -23,7 +23,7 @@ import sys
 import tempfile
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-_PROJECT_ROOT = os.path.abspath(os.path.join(_THIS_DIR, "..", "..", ".."))
+_PROJECT_ROOT = os.path.abspath(os.path.join(_THIS_DIR, "..", ".."))
 os.chdir(_PROJECT_ROOT)
 
 import pandas as pd

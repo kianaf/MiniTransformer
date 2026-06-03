@@ -265,9 +265,9 @@ def generate_latex_table(results_dict):
 
 def main():
     # Find all simulation result files. This script lives at
-    # notebooks/experiments/tables/, but the .txt inputs and .tex output live
-    # directly under notebooks/, so resolve two levels up.
-    notebooks_dir = Path(__file__).parents[2]
+    # experiments/tables/, but the .txt inputs and .tex output live under
+    # notebooks/ at the repo root (parents[2]).
+    notebooks_dir = Path(__file__).parents[2] / "notebooks"
     result_files = list(notebooks_dir.glob("simulation_results_n=*.txt"))
     
     # Filter to only use epochs=100 files (prefer epochs=100 over epochs=200)

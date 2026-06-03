@@ -1,29 +1,29 @@
-"""§3.1 baseline comparison on a real cohort (LORA D1 / LORA D2 / PBC2),
-paper-style: 10-fold cross-validation matching notebooks/real_data_experiments_*.ipynb
-(KFold n_splits=10, shuffle=True, random_state=42), with one seed per fold from
-the paper's seed list. Reports mean ± std for both MSE (averaged across all
-variables) and MSE_target (paper convention: last column = chosen target).
+"""§3.1 baseline comparison on the simulation, paper-style:
+10 seeds, mean ± std reporting, matching the convention of
+notebooks/simulation_experiments.ipynb (Table 1 of the paper).
 
-Models compared (all five neural models trained per fold):
-- MiniTransformer (reference, paper §3.2 hyperparameters: H=8, C=8)
-- KernelAttentionNoDecay
+Models compared (all five neural models trained on each seed):
+- MiniTransformer (reference, paper §3.1 hyperparameters)
+- KernelAttentionNoDecay (MiniTransformer minus Eq. 1 decay; also covers §3.3)
 - ScaledVanillaTransformer (1 layer, 1 head, parameter-matched)
-- iTransformer (parameter-matched)
-- DLinear
+- iTransformer (variable-axis attention, parameter-matched)
+- DLinear (Zeng et al. 2023)
 
-Plus non-neural baselines (avg / regression / repeat-last).
+Plus the non-neural baselines:
+- Marginal mean per target
+- Per-target Gaussian regression on t-1 features
 
-Usage:
-    python notebooks/run_baselines_real_data.py ghq_b_sum
-    python notebooks/run_baselines_real_data.py ghq_sum
-    python notebooks/run_baselines_real_data.py pbc2
+For each seed we generate a fresh (train, eval) pair (n_train and n_test fixed),
+train all five neural models on the same training set, and record per-target
+MSE on the eval set. After all seeds are processed we report mean ± std for
+both MSE (averaged over all variables) and MSE_target (predindex=j3=2).
 """
 import os
 import sys
 import time
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-_PROJECT_ROOT = os.path.abspath(os.path.join(_THIS_DIR, "..", "..", ".."))
+_PROJECT_ROOT = os.path.abspath(os.path.join(_THIS_DIR, "..", ".."))
 os.chdir(_PROJECT_ROOT)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
@@ -33,9 +33,8 @@ import pandas as pd
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from sklearn.model_selection import KFold
 
-from src.data_preparation import collate_function, load_real_data
+from src.data_preparation import SimulatedDataset, collate_function
 from src.transformers import (
     MiniTransformer,
     create_custom_mask_pair,
@@ -44,7 +43,9 @@ from src.transformers import (
     train_mini_transformer,
     count_parameters,
 )
-from src.evaluation import calculate_regression_loss
+from src.evaluation import (
+    calculate_regression_loss, calculate_bench1_loss, calculate_bench2_loss,
+)
 from src.baselines.scaled_vanilla_transformer import (
     ScaledVanillaTransformer, find_matched_d_model,
 )
@@ -56,31 +57,35 @@ from src.baselines.rope_attention import RoPEOrDecayMiniTransformer
 
 device = torch.device("cpu")
 
-DATA_STR = (sys.argv[1] if len(sys.argv) > 1
-            else os.environ.get("VSGL_DATA", "ghq_b_sum"))
-
-# Paper convention (matches real_data_experiments_*.ipynb): one seed per fold
+# Paper's seed list (matches simulation_experiments.ipynb)
 SEEDS = [0, 1, 11, 42, 123, 999, 1337, 2025, 9999, 12345]
-N_SPLITS        = 10
-CV_RANDOM_STATE = 42
 
-# Real-data architecture (paper §3.2: H=8, C=8 for LORA; same defaults for PBC2)
-mt_nheads = 8
-mt_ncum   = 8
+# Simulation config (matches paper §3.1 / Table 1, n_train=200 column)
+n_train = int(os.environ.get("BSL_N_TRAIN", 200))
+n_test  = int(os.environ.get("BSL_N_TEST", 1000))
+p = 10
+maxlen = 10
+predindex = 2  # j3 in the paper
+
+# MiniTransformer hyperparameters (paper §3.1; matches the published paper_results,
+# which were generated with nheads=12 -- see notebooks/paper_results/simulation/).
+mt_nheads = 12
+mt_ncum   = 2
 mt_dk     = 1
 mt_dv     = 1
 
-# Training (paper §3.2)
-batch_size    = 2
+# Training schedule (paper §3.1)
+batch_size    = 1
 learning_rate = 1e-3
 lambda_l2     = 1e-3
-EPOCHS        = int(os.environ.get("BSL_EPOCHS", 150))
+EPOCHS        = int(os.environ.get("BSL_EPOCHS", 100))
 
-OUT_DIR = f"notebooks/results/baselines_real_data/{DATA_STR}"
+OUT_DIR = ("notebooks/results/baselines_simulation"
+           if n_train == 200
+           else f"notebooks/results/baselines_simulation_n{n_train}")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 
-# ----------------------------- helpers -------------------------------------- #
 def _itransformer_params(p, d_model, history_len, dim_feedforward_mult=2, n_heads=1):
     m = ITransformer(p, d_model=d_model, n_heads=n_heads,
                      history_len=history_len,
@@ -113,10 +118,13 @@ def per_target_mse_reg(train_data, test_data):
 
 
 def per_target_mse_repeat(test_data):
+    """Carry-forward baseline: predict the last observation by repeating the
+    second-to-last one. Matches per_target_mse_repeat in run_baselines_real_data.py."""
     p_local = test_data[0].shape[1]
     se, n_eval = np.zeros(p_local), 0
     for s in test_data:
-        if s.shape[0] < 2: continue
+        if s.shape[0] < 2:
+            continue
         se += (s[-1].numpy() - s[-2].numpy()) ** 2
         n_eval += 1
     return se / max(n_eval, 1)
@@ -137,46 +145,34 @@ def per_target_mse_torch_model(model, test_data):
     return se / max(n_eval, 1)
 
 
-def train_and_eval(model, train_data, test_data):
-    loader = DataLoader(train_data, batch_size=batch_size, shuffle=True,
+def train_and_eval(model, train_dataset, test_dataset):
+    loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
                         collate_fn=collate_function, num_workers=0)
-    # Pass the eval loader exactly as simulation_experiments.ipynb does for the
-    # real-data path. train_mini_transformer calls next(iter(eval_loader)) once
-    # per epoch, which consumes the global torch RNG and changes the per-epoch
-    # training shuffle order. Passing None desyncs the SGD trajectory from the
-    # established protocol; reproduce the notebook faithfully.
-    eval_loader = DataLoader(test_data, batch_size=len(test_data), shuffle=False,
+    # IMPORTANT: pass the eval loader exactly as simulation_experiments.ipynb does.
+    # train_mini_transformer calls next(iter(eval_loader)) once per epoch; this
+    # consumes the global torch RNG and therefore changes the per-epoch training
+    # shuffle order. Passing None (instead of the eval loader) silently desyncs
+    # the SGD trajectory from the published paper_results and shifts MSE_target
+    # (e.g. 0.097 -> 0.105 at n_train=200). Reproduce the notebook faithfully.
+    eval_loader = DataLoader(test_dataset, batch_size=n_test, shuffle=False,
                              collate_fn=collate_function, num_workers=0)
     opt = optim.Adam(model.parameters(), lr=learning_rate)
     train_mini_transformer(model, loader, eval_loader, opt, lambda_l2, EPOCHS, device)
-    return per_target_mse_torch_model(model, test_data)
+    return per_target_mse_torch_model(model, test_dataset)
 
 
-# ----------------------------- main ----------------------------------------- #
 def main():
     torch.set_printoptions(sci_mode=False, precision=6)
-    print(f"=== §3.1 baseline comparison on {DATA_STR}, 10-fold CV ===")
-    print(f"EPOCHS={EPOCHS}  batch={batch_size}  CV(random_state={CV_RANDOM_STATE})")
-    print(f"seeds (per fold)={SEEDS}\n")
-
-    # Load + truncate to maxlen=10 (matches v_monotonicity_check_lora/pbc2 pipeline)
-    data, _ = load_real_data(DATA_STR)
-    p = data[0].shape[1]
-    target_idx = p - 1  # convention: last column is the chosen target
-    maxlen = 10
-    def truncate(s): return s if s.shape[0] <= maxlen else s[-maxlen:]
-    data = [truncate(s) for s in data]
-    print(f"{len(data)} sequences, p={p}\n")
-
-    folds = list(KFold(n_splits=N_SPLITS, shuffle=True,
-                       random_state=CV_RANDOM_STATE).split(data))
-    assert len(folds) == len(SEEDS), "n_splits must equal len(SEEDS)"
+    print(f"=== §3.1 baseline comparison on simulation, 10-seed paper-style ===")
+    print(f"n_train={n_train}, n_test={n_test}, p={p}, EPOCHS={EPOCHS}")
+    print(f"seeds={SEEDS}\n")
 
     mask_pairwise = create_custom_mask_pair(maxlen, device)
     distance_to_end_matrix = create_distance_to_end_matrix(maxlen, device)
     pairwise_distance_matrix = create_pairwise_distance_matrix(maxlen, device)
 
-    # Determine matched param counts once
+    # Determine matched param counts once (from a representative MiniTransformer
+    # so they don't depend on the seed)
     torch.manual_seed(0)
     mt0 = MiniTransformer(p, mt_nheads, mt_dk, mt_dv, mt_ncum,
                           mask_pairwise, pairwise_distance_matrix,
@@ -187,11 +183,13 @@ def main():
     print(f"Param targets:  MT={n_params_mt}  SVT={n_params_svt} (d_model={d_model_svt})  "
           f"iTr={n_params_it} (d_model={d_model_it})\n")
 
+    # storage: model_name -> (n_seeds, p) array of per-target MSEs
     results = {k: [] for k in [
         "MiniTransformer", "NoDecay", "ScaledVanillaTr",
-        "iTransformer",    "DLinear", "RoPEAttention",
-        "avg", "reg", "repeat",
+        "iTransformer",    "DLinear", "RoPEAttention", "avg", "reg", "informed", "repeat",
     ]}
+
+    # Build one DLinear / NoDecay / RoPE to get their param counts
     nd0 = KernelAttentionNoDecay(p, mt_nheads, mt_dk, mt_dv, mt_ncum,
                                  mask_pairwise, pairwise_distance_matrix,
                                  distance_to_end_matrix, device).to(device)
@@ -211,98 +209,113 @@ def main():
                 "DLinear": n_params_dl, "RoPEAttention": n_params_rope}
 
     t_start = time.time()
-    for f_idx, ((tr_idx, te_idx), seed) in enumerate(zip(folds, SEEDS)):
-        train_data = [data[i] for i in tr_idx]
-        test_data  = [data[i] for i in te_idx]
-        print(f"--- fold {f_idx+1}/{N_SPLITS}, seed={seed} "
-              f"(train={len(train_data)}, test={len(test_data)}) ---")
+    for k, seed in enumerate(SEEDS):
+        print(f"--- seed {seed}  ({k+1}/{len(SEEDS)}) ---")
+        # Paper's RNG order: seed -> train data -> test data -> model init
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        train_ds = SimulatedDataset(n_train, p, maxlen=maxlen, device=device).data
+        test_ds  = SimulatedDataset(n_test,  p, maxlen=maxlen, device=device).data
 
-        # MiniTransformer
-        torch.manual_seed(seed); np.random.seed(seed)
+        # --- MiniTransformer ---
         mt = MiniTransformer(p, mt_nheads, mt_dk, mt_dv, mt_ncum,
                              mask_pairwise, pairwise_distance_matrix,
                              distance_to_end_matrix, device).to(device)
-        mse = train_and_eval(mt, train_data, test_data)
+        mse = train_and_eval(mt, train_ds, test_ds)
         results["MiniTransformer"].append(mse)
-        print(f"  MT      MSE={mse.mean():.4f}  MSE_target={mse[target_idx]:.4f}")
+        print(f"  MT          MSE={mse.mean():.4f}  MSE_target={mse[predindex]:.4f}")
 
-        # NoDecay
+        # --- KernelAttentionNoDecay ---
         torch.manual_seed(seed); np.random.seed(seed)
         nd = KernelAttentionNoDecay(p, mt_nheads, mt_dk, mt_dv, mt_ncum,
                                     mask_pairwise, pairwise_distance_matrix,
                                     distance_to_end_matrix, device).to(device)
-        mse = train_and_eval(nd, train_data, test_data)
+        mse = train_and_eval(nd, train_ds, test_ds)
         results["NoDecay"].append(mse)
-        print(f"  NoDecay MSE={mse.mean():.4f}  MSE_target={mse[target_idx]:.4f}")
+        print(f"  NoDecay     MSE={mse.mean():.4f}  MSE_target={mse[predindex]:.4f}")
 
-        # ScaledVanillaTransformer
+        # --- ScaledVanillaTransformer ---
         torch.manual_seed(seed); np.random.seed(seed)
-        svt = ScaledVanillaTransformer(p, d_model=d_model_svt,
-                                       max_len=maxlen, device=device)
-        mse = train_and_eval(svt, train_data, test_data)
+        svt = ScaledVanillaTransformer(p, d_model=d_model_svt, max_len=maxlen, device=device)
+        mse = train_and_eval(svt, train_ds, test_ds)
         results["ScaledVanillaTr"].append(mse)
-        print(f"  SVT     MSE={mse.mean():.4f}  MSE_target={mse[target_idx]:.4f}")
+        print(f"  SVT         MSE={mse.mean():.4f}  MSE_target={mse[predindex]:.4f}")
 
-        # iTransformer
+        # --- iTransformer ---
         torch.manual_seed(seed); np.random.seed(seed)
         it = ITransformer(p, d_model=d_model_it, n_heads=1,
                           history_len=maxlen, max_len=maxlen, device=device)
-        mse = train_and_eval(it, train_data, test_data)
+        mse = train_and_eval(it, train_ds, test_ds)
         results["iTransformer"].append(mse)
-        print(f"  iTr     MSE={mse.mean():.4f}  MSE_target={mse[target_idx]:.4f}")
+        print(f"  iTr         MSE={mse.mean():.4f}  MSE_target={mse[predindex]:.4f}")
 
-        # DLinear
+        # --- DLinear ---
         torch.manual_seed(seed); np.random.seed(seed)
         dl = DLinear(p, history_len=maxlen, kernel_size=5, max_len=maxlen, device=device)
-        mse = train_and_eval(dl, train_data, test_data)
+        mse = train_and_eval(dl, train_ds, test_ds)
         results["DLinear"].append(mse)
-        print(f"  DL      MSE={mse.mean():.4f}  MSE_target={mse[target_idx]:.4f}")
+        print(f"  DLinear     MSE={mse.mean():.4f}  MSE_target={mse[predindex]:.4f}")
 
-        # RoPEAttention (MiniTransformer's pairwise decay replaced by RoPE)
+        # --- RoPEAttention (MiniTransformer's pairwise decay replaced by RoPE) ---
         torch.manual_seed(seed); np.random.seed(seed)
         rope = RoPEOrDecayMiniTransformer(
             p, mt_nheads, rope_dk, mt_dv, mt_ncum,
             mask_pairwise, pairwise_distance_matrix, distance_to_end_matrix, device,
             positional_scheme="rope",
         ).to(device)
-        mse = train_and_eval(rope, train_data, test_data)
+        mse = train_and_eval(rope, train_ds, test_ds)
         results["RoPEAttention"].append(mse)
-        print(f"  RoPE    MSE={mse.mean():.4f}  MSE_target={mse[target_idx]:.4f}")
+        print(f"  RoPE        MSE={mse.mean():.4f}  MSE_target={mse[predindex]:.4f}")
 
-        # Non-neural baselines
-        results["avg"].append(per_target_mse_avg(train_data, test_data))
-        results["reg"].append(per_target_mse_reg(train_data, test_data))
-        results["repeat"].append(per_target_mse_repeat(test_data))
+        # --- non-neural baselines ---
+        results["avg"].append(per_target_mse_avg(train_ds, test_ds))
+        results["reg"].append(per_target_mse_reg(train_ds, test_ds))
 
-    print(f"\nAll folds complete: {time.time() - t_start:.1f}s total\n")
+        # --- Informed oracle (uses the true j2 -> j3 conditional structure) ---
+        # Matches the simulation_experiments.ipynb "Informed" baseline:
+        # global mean for all variables except the target, and the conditional
+        # mean of the target given pos2 at the previous step. Only defined on the
+        # simulation (the j1->j2->j3 rule is known). Build a length-p array equal
+        # to the averaging baseline, then overwrite the target index with the
+        # bench2 conditional target-MSE so the aggregation by predindex works.
+        dimave, _b1_tot, _b1_pi = calculate_bench1_loss(train_ds, test_ds, predindex)
+        _b2_tot, b2_pi = calculate_bench2_loss(train_ds, test_ds, dimave)
+        informed_arr = per_target_mse_avg(train_ds, test_ds).copy()
+        informed_arr[predindex] = float(b2_pi)
+        results["informed"].append(informed_arr)
+
+        # --- Carry-forward (repeat last observed value) ---
+        results["repeat"].append(per_target_mse_repeat(test_ds))
+
+    print(f"\nAll seeds complete: {time.time() - t_start:.1f}s total\n")
 
     # Aggregate
     summary_rows = []
     for name, mse_list in results.items():
-        arr = np.stack(mse_list)
-        all_mse = arr.mean(axis=1)
-        tar_mse = arr[:, target_idx]
+        arr = np.stack(mse_list)              # (n_seeds, p)
+        all_mse  = arr.mean(axis=1)           # (n_seeds,) avg over variables
+        tar_mse  = arr[:, predindex]          # (n_seeds,) target only
         summary_rows.append({
             "model": name,
             "params": n_params.get(name, np.nan),
-            "MSE_mean":        all_mse.mean(),
-            "MSE_std":         all_mse.std(),
-            "MSE_target_mean": tar_mse.mean(),
-            "MSE_target_std":  tar_mse.std(),
+            "MSE_mean":         all_mse.mean(),
+            "MSE_std":          all_mse.std(),
+            "MSE_target_mean":  tar_mse.mean(),
+            "MSE_target_std":   tar_mse.std(),
         })
     sum_df = pd.DataFrame(summary_rows)
-    sum_df.to_csv(os.path.join(OUT_DIR, "summary_10folds.csv"),
+    sum_df.to_csv(os.path.join(OUT_DIR, "summary_10seeds.csv"),
                   index=False, float_format="%.5f")
 
+    # Pretty print + paper-style summary
     lines = []
-    lines.append(f"=== §3.1 baseline comparison on {DATA_STR} (10-fold CV) ===")
-    lines.append(f"EPOCHS={EPOCHS}  random_state={CV_RANDOM_STATE}  "
-                 f"seeds (one per fold)={SEEDS}")
+    lines.append(f"=== §3.1 baseline comparison on simulation ===")
+    lines.append(f"n_train={n_train}  EPOCHS={EPOCHS}  seeds={SEEDS}")
     lines.append("")
     lines.append(f"{'Model':<22s} {'Params':>8s}    "
-                 f"{'MSE (10 folds)':>22s}     {'MSE_target (10 folds)':>24s}")
+                 f"{'MSE (10 seeds)':>22s}     {'MSE_target (10 seeds)':>24s}")
     for r in summary_rows:
-        params = "" if pd.isna(r["params"]) else f"{int(r['params'])}"
+        params = ("" if pd.isna(r["params"]) else f"{int(r['params'])}")
         lines.append(
             f"{r['model']:<22s} {params:>8s}    "
             f"{r['MSE_mean']:.3f} ± {r['MSE_std']:.3f}            "
@@ -310,12 +323,13 @@ def main():
         )
     summary = "\n".join(lines)
     print(summary)
-    with open(os.path.join(OUT_DIR, "summary_10folds.txt"), "w") as f:
+    with open(os.path.join(OUT_DIR, "summary_10seeds.txt"), "w") as f:
         f.write(summary + "\n")
 
-    np.savez(os.path.join(OUT_DIR, "per_fold_arrays.npz"),
+    # Persist raw per-seed per-target arrays for downstream use
+    np.savez(os.path.join(OUT_DIR, "per_seed_arrays.npz"),
              **{k: np.stack(v) for k, v in results.items()})
-    print(f"\nSaved: summary_10folds.csv, summary_10folds.txt, per_fold_arrays.npz")
+    print(f"\nSaved: summary_10seeds.csv, summary_10seeds.txt, per_seed_arrays.npz")
     print("\n=== Done. ===")
 
 
