@@ -43,13 +43,16 @@ from src.transformers import (
     train_mini_transformer,
     count_parameters,
 )
-from src.evaluation import calculate_regression_loss
+from src.evaluation import (
+    calculate_regression_loss, calculate_bench1_loss, calculate_bench2_loss,
+)
 from src.baselines.scaled_vanilla_transformer import (
     ScaledVanillaTransformer, find_matched_d_model,
 )
 from src.baselines.dlinear import DLinear
 from src.baselines.kernel_attention_no_decay import KernelAttentionNoDecay
 from src.baselines.itransformer import ITransformer
+from src.baselines.rope_attention import RoPEOrDecayMiniTransformer
 
 
 device = torch.device("cpu")
@@ -64,7 +67,8 @@ p = 10
 maxlen = 10
 predindex = 2  # j3 in the paper
 
-# MiniTransformer hyperparameters (paper §3.1)
+# MiniTransformer hyperparameters (paper §3.1; matches the published paper_results,
+# which were generated with nheads=12 -- see notebooks/paper_results/simulation/).
 mt_nheads = 12
 mt_ncum   = 2
 mt_dk     = 1
@@ -76,7 +80,9 @@ learning_rate = 1e-3
 lambda_l2     = 1e-3
 EPOCHS        = int(os.environ.get("BSL_EPOCHS", 100))
 
-OUT_DIR = "notebooks/results/baselines_simulation"
+OUT_DIR = ("notebooks/results/baselines_simulation"
+           if n_train == 200
+           else f"notebooks/results/baselines_simulation_n{n_train}")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 
@@ -111,6 +117,19 @@ def per_target_mse_reg(train_data, test_data):
     return per_target
 
 
+def per_target_mse_repeat(test_data):
+    """Carry-forward baseline: predict the last observation by repeating the
+    second-to-last one. Matches per_target_mse_repeat in run_baselines_real_data.py."""
+    p_local = test_data[0].shape[1]
+    se, n_eval = np.zeros(p_local), 0
+    for s in test_data:
+        if s.shape[0] < 2:
+            continue
+        se += (s[-1].numpy() - s[-2].numpy()) ** 2
+        n_eval += 1
+    return se / max(n_eval, 1)
+
+
 def per_target_mse_torch_model(model, test_data):
     model.eval()
     p_local = test_data[0].shape[1]
@@ -129,8 +148,16 @@ def per_target_mse_torch_model(model, test_data):
 def train_and_eval(model, train_dataset, test_dataset):
     loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
                         collate_fn=collate_function, num_workers=0)
+    # IMPORTANT: pass the eval loader exactly as simulation_experiments.ipynb does.
+    # train_mini_transformer calls next(iter(eval_loader)) once per epoch; this
+    # consumes the global torch RNG and therefore changes the per-epoch training
+    # shuffle order. Passing None (instead of the eval loader) silently desyncs
+    # the SGD trajectory from the published paper_results and shifts MSE_target
+    # (e.g. 0.097 -> 0.105 at n_train=200). Reproduce the notebook faithfully.
+    eval_loader = DataLoader(test_dataset, batch_size=n_test, shuffle=False,
+                             collate_fn=collate_function, num_workers=0)
     opt = optim.Adam(model.parameters(), lr=learning_rate)
-    train_mini_transformer(model, loader, None, opt, lambda_l2, EPOCHS, device)
+    train_mini_transformer(model, loader, eval_loader, opt, lambda_l2, EPOCHS, device)
     return per_target_mse_torch_model(model, test_dataset)
 
 
@@ -159,19 +186,27 @@ def main():
     # storage: model_name -> (n_seeds, p) array of per-target MSEs
     results = {k: [] for k in [
         "MiniTransformer", "NoDecay", "ScaledVanillaTr",
-        "iTransformer",    "DLinear", "avg", "reg",
+        "iTransformer",    "DLinear", "RoPEAttention", "avg", "reg", "informed", "repeat",
     ]}
 
-    # Build one DLinear / NoDecay to get their param counts (data-independent)
+    # Build one DLinear / NoDecay / RoPE to get their param counts
     nd0 = KernelAttentionNoDecay(p, mt_nheads, mt_dk, mt_dv, mt_ncum,
                                  mask_pairwise, pairwise_distance_matrix,
                                  distance_to_end_matrix, device).to(device)
     n_params_nd = sum(par.numel() for par in nd0.parameters() if par.requires_grad)
     dl0 = DLinear(p, history_len=maxlen, kernel_size=5, max_len=maxlen, device=device)
     n_params_dl = sum(par.numel() for par in dl0.parameters() if par.requires_grad)
+    # RoPE requires even dk (rotates in 2D subspaces); use dk=2.
+    rope_dk = 2
+    rope0 = RoPEOrDecayMiniTransformer(
+        p, mt_nheads, rope_dk, mt_dv, mt_ncum,
+        mask_pairwise, pairwise_distance_matrix, distance_to_end_matrix, device,
+        positional_scheme="rope",
+    ).to(device)
+    n_params_rope = sum(par.numel() for par in rope0.parameters() if par.requires_grad)
     n_params = {"MiniTransformer": n_params_mt, "NoDecay": n_params_nd,
                 "ScaledVanillaTr": n_params_svt, "iTransformer": n_params_it,
-                "DLinear": n_params_dl}
+                "DLinear": n_params_dl, "RoPEAttention": n_params_rope}
 
     t_start = time.time()
     for k, seed in enumerate(SEEDS):
@@ -221,9 +256,36 @@ def main():
         results["DLinear"].append(mse)
         print(f"  DLinear     MSE={mse.mean():.4f}  MSE_target={mse[predindex]:.4f}")
 
+        # --- RoPEAttention (MiniTransformer's pairwise decay replaced by RoPE) ---
+        torch.manual_seed(seed); np.random.seed(seed)
+        rope = RoPEOrDecayMiniTransformer(
+            p, mt_nheads, rope_dk, mt_dv, mt_ncum,
+            mask_pairwise, pairwise_distance_matrix, distance_to_end_matrix, device,
+            positional_scheme="rope",
+        ).to(device)
+        mse = train_and_eval(rope, train_ds, test_ds)
+        results["RoPEAttention"].append(mse)
+        print(f"  RoPE        MSE={mse.mean():.4f}  MSE_target={mse[predindex]:.4f}")
+
         # --- non-neural baselines ---
         results["avg"].append(per_target_mse_avg(train_ds, test_ds))
         results["reg"].append(per_target_mse_reg(train_ds, test_ds))
+
+        # --- Informed oracle (uses the true j2 -> j3 conditional structure) ---
+        # Matches the simulation_experiments.ipynb "Informed" baseline:
+        # global mean for all variables except the target, and the conditional
+        # mean of the target given pos2 at the previous step. Only defined on the
+        # simulation (the j1->j2->j3 rule is known). Build a length-p array equal
+        # to the averaging baseline, then overwrite the target index with the
+        # bench2 conditional target-MSE so the aggregation by predindex works.
+        dimave, _b1_tot, _b1_pi = calculate_bench1_loss(train_ds, test_ds, predindex)
+        _b2_tot, b2_pi = calculate_bench2_loss(train_ds, test_ds, dimave)
+        informed_arr = per_target_mse_avg(train_ds, test_ds).copy()
+        informed_arr[predindex] = float(b2_pi)
+        results["informed"].append(informed_arr)
+
+        # --- Carry-forward (repeat last observed value) ---
+        results["repeat"].append(per_target_mse_repeat(test_ds))
 
     print(f"\nAll seeds complete: {time.time() - t_start:.1f}s total\n")
 

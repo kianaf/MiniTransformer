@@ -1,26 +1,25 @@
 """Null-calibration check for the MiniTransformer permutation test.
 
-Trains the MiniTransformer on the standard simulation (p=10, n=200, only variables
-0,1,2 carry the true context pattern) and then runs `statistical_testing` with a
-large number of repetitions to obtain a per-variable distribution of p-values.
+Trains the MiniTransformer on the standard simulation (p=10, n=200, only
+variables 0,1,2 carry the true context pattern) with the signal target
+predindex=2 and then runs ``statistical_testing`` with a large number of
+repetitions to obtain a per-variable distribution of p-values. Variables
+3..9 are null with respect to this target. The empirical permutation null
+is contaminated by signal rows (variables 0,1,2 with non-zero Delta), so
+the paper (Section 2.3) predicts that p-values for null variables are
+shifted toward 1 -- i.e.\ conservative rather than uniform. We empirically
+verify Type-I rate <= alpha.
 
-Modes
------
-signal_target (default, predindex=2):  predict j3, the signal target. Variables
-    3..9 are null wrt this target. The empirical permutation null is *contaminated*
-    by signal rows (vars 0,1,2 with non-zero Delta), so the paper (§2.3) predicts
-    p-values for null variables to be shifted toward 1 — i.e. conservative, not
-    uniform. We empirically verify Type-I rate <= alpha.
+The script only supports the signal-target setting; the test is interpretable
+only on targets the model can predict well (the Section 2.3 guideline), so
+calibration on a generatively-null target is not part of the calibration
+analysis reported in Appendix S1.
 
-null_target (predindex in 3..9):  predict a generatively-null target. From the
-    DGP, no variable causes the target. p-values reflect what the trained model
-    has *learned*, not the DGP — useful as a stress test for §3.5(b).
-
-Outputs (per mode, under notebooks/results/null_calibration/<mode>_predindex=<i>):
-    - histograms.png        per-variable p-value histogram + uniform reference
-    - qq_null_variables.png Q-Q vs Uniform[0,1] for variables labelled null
-    - summary.txt           KS-test, mean p, rejection rates @ 0.05 / 0.01
-    - pval_mat.pkl          raw (p, nrepp) p-value matrix + run config
+Outputs (under notebooks/results/null_calibration/signal_target_predindex=2):
+    - histograms.png         per-variable p-value histogram + uniform reference
+    - qq_null_variables.png  Q-Q vs Uniform[0,1] for all variables
+    - summary.txt            mean p, rejection rates @ 0.05 / 0.01
+    - pval_mat.pkl           raw (p, nrepp) p-value matrix + run config
 """
 import os
 import sys
@@ -38,7 +37,6 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
-from scipy import stats
 
 from src.data_preparation import SimulatedDataset, collate_function
 from src.transformers import (
@@ -60,14 +58,12 @@ n_train = int(os.environ.get("CALIB_N", 200))
 p = 10
 maxlen = 10
 true_pattern_idx = (0, 1, 2)  # variables involved in the true context pattern
-# predindex selects the target the test asks "is X a context for predicting THIS?".
-#   2 (default) = predict j3 (signal target). Variables 0,1,2 carry context signal,
-#                 3-9 are null wrt this target. Permutation null is contaminated by
-#                 signal rows -> conservative behaviour for null variables.
-#   any of 3-9  = predict a NULL target. No variable carries signal -> "pure null"
-#                 setting where the empirical null is uncontaminated and p-values
-#                 should be uniform on [0, 1].
-predindex = int(os.environ.get("CALIB_PREDINDEX", 2))
+# We calibrate only on the signal target (predindex = j_3 = 2). The
+# generatively-null-target mode used in earlier drafts has been removed:
+# the Section 2.3 guideline ties test interpretation to targets the model
+# can predict, so calibration on a target the model cannot predict is not
+# part of the analysis reported in Appendix S1.
+predindex = 2
 
 # Architecture
 nheads = 12
@@ -91,7 +87,7 @@ nrepp = int(os.environ.get("CALIB_NREPP", 500))
 target_sample_size = int(os.environ.get("CALIB_V", 5))
 seed_test = 20260505
 
-_mode = "signal_target" if predindex in true_pattern_idx else "null_target"
+_mode = "signal_target"  # only signal-target mode is supported
 OUT_DIR = f"notebooks/results/null_calibration/{_mode}_predindex={predindex}"
 os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -104,11 +100,11 @@ def main():
 
     # 1. Generate simulation data, in the SAME RNG-consumption order as
     #    simulation_experiments.ipynb (which produced Table 1) and as
-    #    v_sweep_and_gate.py: seed once at top, then train, then test
+    #    v_monotonicity_check.py: seed once at top, then train, then test
     #    (n_test=1000 to match the paper), then model. The test set is
     #    consumed by the RNG even though this script does not use it for
     #    evaluation -- this keeps the trained model identical to the one
-    #    used in v_sweep_and_gate.py for cross-script comparability.
+    #    used in v_monotonicity_check.py for cross-script comparability.
     train_dataset = SimulatedDataset(n_train, p, maxlen=maxlen, device=device).data
     _ = SimulatedDataset(1000, p, maxlen=maxlen, device=device).data  # consume RNG
     print(f"Generated {len(train_dataset)} train sequences with p={p}.\n")
@@ -165,15 +161,12 @@ def main():
         }, f)
     print(f"Saved raw p-value matrix to {raw_path}\n")
 
-    # 6. Per-variable summary + KS test against Uniform[0,1] + rejection rates
-    # In signal_target mode, "null" means "not in true_pattern_idx".
-    # In null_target mode, EVERY variable is null wrt the chosen target — there is
-    # no signal source to contaminate the permutation null, so p-values should be
-    # uniform on [0, 1] (cf. reviewer's §3.6b).
-    if _mode == "null_target":
-        null_set = set(range(p))
-    else:
-        null_set = set(range(p)) - set(true_pattern_idx)
+    # 6. Per-variable summary + rejection rates. With the signal target
+    # (predindex=2), "null" means "not in true_pattern_idx", i.e. variables
+    # 3..9. The permutation null is contaminated by signal rows from
+    # variables 0,1,2, so p-values for null variables are shifted toward 1
+    # (conservative behaviour), as predicted in Section 2.3.
+    null_set = set(range(p)) - set(true_pattern_idx)
 
     summary_lines = []
     summary_lines.append(
@@ -181,23 +174,20 @@ def main():
     )
     summary_lines.append("")
     header = (
-        f"Var | mean p |  std  |  KS  |   KS p   | rej@0.05 | rej@0.01 | true"
+        f"Var | mean p |  std  | rej@0.05 | rej@0.01 | true"
     )
     summary_lines.append(header)
     summary_lines.append("-" * len(header))
-    ks_results = {}
     rej05_null, rej05_signal = [], []
     rej01_null, rej01_signal = [], []
     for j in range(p):
         pvals_j = pval_mat_np[j]
-        ks_stat, ks_pval = stats.kstest(pvals_j, "uniform")
-        ks_results[j] = (ks_stat, ks_pval)
         rej05 = float((pvals_j < 0.05).mean())
         rej01 = float((pvals_j < 0.01).mean())
         cls = "NULL  " if j in null_set else "SIGNAL"
         summary_lines.append(
             f"{j:>2}  | {pvals_j.mean():.3f}  | {pvals_j.std():.3f} "
-            f"| {ks_stat:.3f} | {ks_pval:.2e} |  {rej05:.3f}   |  {rej01:.3f}   | {cls}"
+            f"|  {rej05:.3f}   |  {rej01:.3f}   | {cls}"
         )
         if j in null_set:
             rej05_null.append(rej05)
@@ -236,8 +226,7 @@ def main():
                 edgecolor="white")
         ax.axhline(nrepp / 20, color="grey", linestyle="--", linewidth=1,
                    label="Uniform expectation")
-        ks_stat, ks_pval = ks_results[j]
-        title = f"Var {j} ({'null' if is_null else 'signal'})\nKS p={ks_pval:.2e}"
+        title = f"Var {j} ({'null' if is_null else 'signal'})"
         ax.set_title(title, fontsize=10)
         ax.set_xlim(0, 1)
         ax.set_xlabel("p-value")
@@ -267,8 +256,7 @@ def main():
         ax.plot([0, 1], [0, 1], color="grey", linestyle="--", linewidth=1)
         ax.plot(theoretical, pvals_j, marker="o", linestyle="none",
                 markersize=2, color=color)
-        ks_stat, ks_pval = ks_results[j]
-        title = f"Var {j} ({'null' if is_null else 'signal'})\nKS p={ks_pval:.2e}"
+        title = f"Var {j} ({'null' if is_null else 'signal'})"
         ax.set_title(title, fontsize=10)
         ax.set_xlabel("Uniform[0,1] quantiles")
         if j % 5 == 0:

@@ -1,13 +1,30 @@
 .DS_Store
-src/__pycache__
+__pycache__
 mini_transformer_venv
 devcontainer.json
 data/dementia_data/data_version/*
 env
 runs
 .vscode
-src/__pycache__
+src/baselines/__pycache__
+notebooks/__pycache__/*
 notebooks/results
 notebooks/statistical_testing
 MiniTransformer.pdf
+*.pyc
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.bbl
+*.blg
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+texput.log
+
+# Claude Code temp worktrees
+.claude/worktrees/
+minitransformer_paper
 

@@ -22,7 +22,7 @@ Design choices:
   with ``mini_transformer_loss`` (which compares against ``target[:, 2:, :]``)
   is identical to MiniTransformer's. As a result, this class is a drop-in
   replacement in ``train_mini_transformer`` and the per-target / gate code in
-  ``v_sweep_and_gate*.py``.
+  ``v_monotonicity_check*.py``.
 """
 from __future__ import annotations
 
