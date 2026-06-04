@@ -57,14 +57,14 @@ def main():
     _panel(axes[0, 0], d1, "mean_p", "Mean p-value", V1)
     _panel(axes[0, 1], d1, "rej_05", r"Rejection rate at $\alpha=0.05$", V1)
     axes[0, 1].axhline(0.05, color="grey", linestyle="--", linewidth=1)
-    axes[0, 0].set_title("LORA D1 (ghq\\_b\\_sum)", fontsize=10)
-    axes[0, 1].set_title("LORA D1 (ghq\\_b\\_sum)", fontsize=10)
+    axes[0, 0].set_title("LORA D1 (ghq_b_sum)", fontsize=10)
+    axes[0, 1].set_title("LORA D1 (ghq_b_sum)", fontsize=10)
 
     _panel(axes[1, 0], d2, "mean_p", "Mean p-value", V2)
     _panel(axes[1, 1], d2, "rej_05", r"Rejection rate at $\alpha=0.05$", V2)
     axes[1, 1].axhline(0.05, color="grey", linestyle="--", linewidth=1)
-    axes[1, 0].set_title("LORA D2 (ghq\\_sum)", fontsize=10)
-    axes[1, 1].set_title("LORA D2 (ghq\\_sum)", fontsize=10)
+    axes[1, 0].set_title("LORA D2 (ghq_sum)", fontsize=10)
+    axes[1, 1].set_title("LORA D2 (ghq_sum)", fontsize=10)
 
     for ax in axes.flat:
         ax.tick_params(labelsize=8)
