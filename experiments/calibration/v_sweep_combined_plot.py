@@ -42,6 +42,7 @@ def _panel(ax, df, col, signal_col, label_signal, label_null, ylabel, V_list):
     ax.set_ylabel(ylabel)
     ax.set_xticks(V_list)
     ax.grid(True, alpha=0.3)
+    ax.set_box_aspect(1)  # square plotting box regardless of data range
 
 
 def main():
@@ -50,7 +51,7 @@ def main():
     V_sim = sorted(sim["V"].unique())
     V_pbc2 = sorted(pbc2["V"].unique())
 
-    fig, axes = plt.subplots(2, 2, figsize=(8.5, 5.5))
+    fig, axes = plt.subplots(2, 2, figsize=(7, 7))
 
     # Top row: synthetic simulation (signal flag = is_signal).
     _panel(axes[0, 0], sim, "mean_p", "is_signal", None, None,
