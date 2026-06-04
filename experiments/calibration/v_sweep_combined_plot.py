@@ -50,7 +50,7 @@ def main():
     V_sim = sorted(sim["V"].unique())
     V_pbc2 = sorted(pbc2["V"].unique())
 
-    fig, axes = plt.subplots(2, 2, figsize=(11, 9))
+    fig, axes = plt.subplots(2, 2, figsize=(8.5, 5.5))
 
     # Top row: synthetic simulation (signal flag = is_signal).
     _panel(axes[0, 0], sim, "mean_p", "is_signal", None, None,
@@ -58,8 +58,8 @@ def main():
     _panel(axes[0, 1], sim, "rej_05", "is_signal", None, None,
            r"Rejection rate at $\alpha=0.05$", V_sim)
     axes[0, 1].axhline(0.05, color="grey", linestyle="--", linewidth=1)
-    axes[0, 0].set_title("Synthetic simulation", fontsize=12)
-    axes[0, 1].set_title("Synthetic simulation", fontsize=12)
+    axes[0, 0].set_title("Synthetic simulation", fontsize=10)
+    axes[0, 1].set_title("Synthetic simulation", fontsize=10)
 
     # Bottom row: PBC2-substrate simulation (signal flag = is_trigger).
     _panel(axes[1, 0], pbc2, "mean_p", "is_trigger", None, None,
@@ -67,8 +67,13 @@ def main():
     _panel(axes[1, 1], pbc2, "rej_05", "is_trigger", None, None,
            r"Rejection rate at $\alpha=0.05$", V_pbc2)
     axes[1, 1].axhline(0.05, color="grey", linestyle="--", linewidth=1)
-    axes[1, 0].set_title("PBC2-substrate simulation", fontsize=12)
-    axes[1, 1].set_title("PBC2-substrate simulation", fontsize=12)
+    axes[1, 0].set_title("PBC2-substrate simulation", fontsize=10)
+    axes[1, 1].set_title("PBC2-substrate simulation", fontsize=10)
+
+    for ax in axes.flat:
+        ax.tick_params(labelsize=8)
+        ax.xaxis.label.set_size(9)
+        ax.yaxis.label.set_size(9)
 
     # Shared legend (colour key only; individual variables are not labelled to
     # keep the figure readable).
@@ -77,12 +82,9 @@ def main():
     null_handle = plt.Line2D([], [], color=COLOR_NULL, marker="o",
                              linestyle="-", label="null variables")
     fig.legend(handles=[sig_handle, null_handle], loc="lower center",
-               ncol=2, fontsize=11, bbox_to_anchor=(0.5, -0.01))
+               ncol=2, fontsize=9, bbox_to_anchor=(0.5, -0.02))
 
-    fig.suptitle(
-        r"Sensitivity of the permutation test to the visit-sample size $V$ "
-        r"($\mathrm{nrepp}=500$)", fontsize=13)
-    fig.tight_layout(rect=[0, 0.04, 1, 0.96])
+    fig.tight_layout(rect=[0, 0.04, 1, 1])
     fig.savefig(OUT_PATH, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved combined V-sweep figure to {OUT_PATH}")
