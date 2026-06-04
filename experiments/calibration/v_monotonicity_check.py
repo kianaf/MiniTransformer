@@ -14,7 +14,8 @@ Trains ONE MiniTransformer on the standard simulation, then:
     V in {5, 6, 7} with nrepp=500 each, and reports per-variable mean
     p-value, std, KS statistic, and empirical rejection rate at alpha
     in {0.05, 0.01}. This directly tests whether smaller V is *more*
-    or *less* conservative under the simulation null.
+    or *less* conservative under the simulation null. (The plot shows two
+    panels: mean p-value and rejection rate vs V; no KS panel.)
 
 Outputs (under notebooks/results/v_monotonicity_check/):
     per_target_mse.csv         per-target MSE table + gate column
