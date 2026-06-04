@@ -72,9 +72,11 @@ def main():
         ax.yaxis.label.set_size(9)
 
     target_handle = plt.Line2D([], [], color=COLOR_TARGET, marker="o",
-                               linestyle="-", label="target as its own context")
+                               linestyle="-",
+                               label="GHQ target variable (reference)")
     other_handle = plt.Line2D([], [], color=COLOR_OTHER, marker="o",
-                              linestyle="-", label="candidate context variables")
+                              linestyle="-",
+                              label="candidate context variables (under test)")
     fig.legend(handles=[target_handle, other_handle], loc="lower center",
                ncol=2, fontsize=9, bbox_to_anchor=(0.5, -0.02))
 
