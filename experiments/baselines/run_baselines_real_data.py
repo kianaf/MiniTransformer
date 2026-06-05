@@ -52,6 +52,7 @@ from src.baselines.dlinear import DLinear
 from src.baselines.kernel_attention_no_decay import KernelAttentionNoDecay
 from src.baselines.itransformer import ITransformer
 from src.baselines.rope_attention import RoPEOrDecayMiniTransformer
+from src.baselines.patchtst import PatchTST
 
 
 device = torch.device("cpu")
@@ -189,7 +190,7 @@ def main():
 
     results = {k: [] for k in [
         "MiniTransformer", "NoDecay", "ScaledVanillaTr",
-        "iTransformer",    "DLinear", "RoPEAttention",
+        "iTransformer",    "DLinear", "RoPEAttention", "PatchTST",
         "avg", "reg", "repeat",
     ]}
     nd0 = KernelAttentionNoDecay(p, mt_nheads, mt_dk, mt_dv, mt_ncum,
@@ -206,9 +207,13 @@ def main():
         positional_scheme="rope",
     ).to(device)
     n_params_rope = sum(par.numel() for par in rope0.parameters() if par.requires_grad)
+    pt0 = PatchTST(p, d_model=d_model_it, n_heads=1, history_len=maxlen,
+                   patch_len=3, stride=2, max_len=maxlen, device=device)
+    n_params_pt = sum(par.numel() for par in pt0.parameters() if par.requires_grad)
     n_params = {"MiniTransformer": n_params_mt, "NoDecay": n_params_nd,
                 "ScaledVanillaTr": n_params_svt, "iTransformer": n_params_it,
-                "DLinear": n_params_dl, "RoPEAttention": n_params_rope}
+                "DLinear": n_params_dl, "RoPEAttention": n_params_rope,
+                "PatchTST": n_params_pt}
 
     t_start = time.time()
     for f_idx, ((tr_idx, te_idx), seed) in enumerate(zip(folds, SEEDS)):
@@ -268,6 +273,14 @@ def main():
         mse = train_and_eval(rope, train_data, test_data)
         results["RoPEAttention"].append(mse)
         print(f"  RoPE    MSE={mse.mean():.4f}  MSE_target={mse[target_idx]:.4f}")
+
+        # PatchTST (channel-independent patch transformer)
+        torch.manual_seed(seed); np.random.seed(seed)
+        pt = PatchTST(p, d_model=d_model_it, n_heads=1, history_len=maxlen,
+                      patch_len=3, stride=2, max_len=maxlen, device=device)
+        mse = train_and_eval(pt, train_data, test_data)
+        results["PatchTST"].append(mse)
+        print(f"  PatchTST MSE={mse.mean():.4f}  MSE_target={mse[target_idx]:.4f}")
 
         # Non-neural baselines
         results["avg"].append(per_target_mse_avg(train_data, test_data))

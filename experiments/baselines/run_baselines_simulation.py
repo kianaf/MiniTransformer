@@ -53,6 +53,7 @@ from src.baselines.dlinear import DLinear
 from src.baselines.kernel_attention_no_decay import KernelAttentionNoDecay
 from src.baselines.itransformer import ITransformer
 from src.baselines.rope_attention import RoPEOrDecayMiniTransformer
+from src.baselines.patchtst import PatchTST
 
 
 device = torch.device("cpu")
@@ -186,7 +187,8 @@ def main():
     # storage: model_name -> (n_seeds, p) array of per-target MSEs
     results = {k: [] for k in [
         "MiniTransformer", "NoDecay", "ScaledVanillaTr",
-        "iTransformer",    "DLinear", "RoPEAttention", "avg", "reg", "informed", "repeat",
+        "iTransformer",    "DLinear", "RoPEAttention", "PatchTST",
+        "avg", "reg", "informed", "repeat",
     ]}
 
     # Build one DLinear / NoDecay / RoPE to get their param counts
@@ -204,9 +206,16 @@ def main():
         positional_scheme="rope",
     ).to(device)
     n_params_rope = sum(par.numel() for par in rope0.parameters() if par.requires_grad)
+    # PatchTST: channel-independent patch transformer; matched to iTransformer's
+    # embedding dimension (patch_len=3, stride=2 -> 4 patches on the length-10
+    # history window).
+    pt0 = PatchTST(p, d_model=d_model_it, n_heads=1, history_len=maxlen,
+                   patch_len=3, stride=2, max_len=maxlen, device=device)
+    n_params_pt = sum(par.numel() for par in pt0.parameters() if par.requires_grad)
     n_params = {"MiniTransformer": n_params_mt, "NoDecay": n_params_nd,
                 "ScaledVanillaTr": n_params_svt, "iTransformer": n_params_it,
-                "DLinear": n_params_dl, "RoPEAttention": n_params_rope}
+                "DLinear": n_params_dl, "RoPEAttention": n_params_rope,
+                "PatchTST": n_params_pt}
 
     t_start = time.time()
     for k, seed in enumerate(SEEDS):
@@ -266,6 +275,14 @@ def main():
         mse = train_and_eval(rope, train_ds, test_ds)
         results["RoPEAttention"].append(mse)
         print(f"  RoPE        MSE={mse.mean():.4f}  MSE_target={mse[predindex]:.4f}")
+
+        # --- PatchTST (channel-independent patch transformer) ---
+        torch.manual_seed(seed); np.random.seed(seed)
+        pt = PatchTST(p, d_model=d_model_it, n_heads=1, history_len=maxlen,
+                      patch_len=3, stride=2, max_len=maxlen, device=device)
+        mse = train_and_eval(pt, train_ds, test_ds)
+        results["PatchTST"].append(mse)
+        print(f"  PatchTST    MSE={mse.mean():.4f}  MSE_target={mse[predindex]:.4f}")
 
         # --- non-neural baselines ---
         results["avg"].append(per_target_mse_avg(train_ds, test_ds))
