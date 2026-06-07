@@ -456,24 +456,23 @@ def train_mini_transformer(model, train_loader, eval_loader, optimizer, lambda_l
 
         
         if eval_loader is not None:
-            
             model.eval()
-            
-            eval_data = next(iter(eval_loader))
-            
-            output_eval = model((eval_data[0][:,:-1,:] , eval_data[1][:,:-1,:]))    
-            
-            sum_square_error = mini_transformer_loss(output_eval, eval_data[0], eval_data[1]).detach().cpu().item()
-            penalty_eval = l2_penalty_params_except_bias(model, lambda_l2)
-            loss_eval = sum_square_error #+ penalty_eval
-            
+            eval_data = next(iter(eval_loader))  # always advance RNG to match main-protocol
+            try:
+                output_eval = model((eval_data[0][:,:-1,:] , eval_data[1][:,:-1,:]))
+                sum_square_error = mini_transformer_loss(output_eval, eval_data[0], eval_data[1]).detach().cpu().item()
+                penalty_eval = l2_penalty_params_except_bias(model, lambda_l2)
+                loss_eval = sum_square_error
+            except Exception:
+                loss_eval = None
+                penalty_eval = float('nan')
             model.train(True)
         
         
         if epoch_number % 10 == 0:
             print('EPOCH {}:'.format(epoch_number + 1))
             print('avg_loss:     {:.5f}'.format(avg_loss), 'penalty    : {:.5f}'.format(penalty))
-            if eval_loader is not None:
+            if eval_loader is not None and loss_eval is not None:
                 print('avg_loss_val: {:.5f}'.format(loss_eval), 'penalty_val: {:.5f}'.format(penalty_eval))
 
         # # Log model parameters (weights and biases) after every epoch

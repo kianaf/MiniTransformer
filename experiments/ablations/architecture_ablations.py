@@ -111,16 +111,10 @@ def per_target_mse(model, test_data):
 def train_and_eval(model, train_data, test_data, epochs):
     loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True,
                         collate_fn=collate_function, num_workers=0)
-    # NOTE: eval_loader is intentionally None here. The cumulant ablations are
-    # NEW in the revision (no published reference to reproduce), so they only
-    # need internal consistency among MiniTransformer / HorizonDecayOff /
-    # CumulantOff, which a fixed protocol provides. We do NOT pass an eval loader
-    # because the per-epoch eval-loss readout in train_mini_transformer assumes
-    # the standard MiniTransformer output shape and crashes on the ablation
-    # variants (CumulantAblationMiniTransformer). All three variants use the same
-    # None convention, so the comparison remains fair.
+    eval_loader = DataLoader(test_data, batch_size=len(test_data), shuffle=False,
+                             collate_fn=collate_function, num_workers=0)
     opt = optim.Adam(model.parameters(), lr=LR)
-    train_mini_transformer(model, loader, None, opt, LAMBDA_L2, epochs, device)
+    train_mini_transformer(model, loader, eval_loader, opt, LAMBDA_L2, epochs, device)
     return per_target_mse(model, test_data)
 
 
@@ -141,8 +135,14 @@ def run_simulation():
         torch.manual_seed(seed); np.random.seed(seed)
         train_ds = SimulatedDataset(SIM_N_TRAIN, SIM_P, maxlen=SIM_MAXLEN, device=device).data
         test_ds = SimulatedDataset(SIM_N_TEST, SIM_P, maxlen=SIM_MAXLEN, device=device).data
+        # Save RNG state after data generation so every mode starts from the
+        # same point as the main experiment (run_baselines_simulation.py), which
+        # initializes the model without resetting the seed.
+        rng_state = torch.get_rng_state()
+        np_rng_state = np.random.get_state()
         for mode in MODES:
-            torch.manual_seed(seed); np.random.seed(seed)
+            torch.set_rng_state(rng_state)
+            np.random.set_state(np_rng_state)
             model = make_model(mode, SIM_P, SIM_NHEADS, SIM_DK, SIM_DV, SIM_NCUM, masks)
             mse = train_and_eval(model, train_ds, test_ds, SIM_EPOCHS)
             results[mode].append(mse)
