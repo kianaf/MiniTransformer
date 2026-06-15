@@ -99,15 +99,9 @@ def main():
     print(f"=== MiniTransformer null-calibration (nrepp={nrepp}) ===\n")
 
     # 1. Generate simulation data, in the SAME RNG-consumption order as
-    #    simulation_experiments.ipynb (which produced Table 1) and as
-    #    v_monotonicity_check.py: seed once at top, then train, then test
-    #    (n_test=1000 to match the paper), then model. The test set is
-    #    consumed by the RNG even though this script does not use it for
-    #    evaluation -- this keeps the trained model identical to the one
-    #    used in v_monotonicity_check.py for cross-script comparability.
     train_dataset = SimulatedDataset(n_train, p, maxlen=maxlen, device=device).data
-    _ = SimulatedDataset(1000, p, maxlen=maxlen, device=device).data  # consume RNG
-    print(f"Generated {len(train_dataset)} train sequences with p={p}.\n")
+    eval_dataset  = SimulatedDataset(1000, p, maxlen=maxlen, device=device).data
+    print(f"Generated {len(train_dataset)} train + {len(eval_dataset)} eval sequences with p={p}.\n")
 
     # 2. Build model
     mask_pairwise = create_custom_mask_pair(maxlen, device)
@@ -126,10 +120,14 @@ def main():
         train_dataset, batch_size=batch_size, shuffle=True,
         collate_fn=collate_function, num_workers=0,
     )
+    eval_loader = DataLoader(
+        eval_dataset, batch_size=len(eval_dataset), shuffle=False,
+        collate_fn=collate_function, num_workers=0,
+    )
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     t0 = time.time()
-    train_mini_transformer(model, dataloader, None, optimizer, lambda_l2, EPOCHS, device)
+    train_mini_transformer(model, dataloader, eval_loader, optimizer, lambda_l2, EPOCHS, device)
     print(f"\nTraining done in {time.time() - t0:.1f}s.\n")
 
     # 4. Run calibration: large nrepp, return full p-value matrix

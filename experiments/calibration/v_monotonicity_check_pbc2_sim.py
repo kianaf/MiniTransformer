@@ -142,10 +142,14 @@ def main():
         seqs, batch_size=batch_size, shuffle=True,
         collate_fn=collate_function, num_workers=0,
     )
+    eval_loader = DataLoader(
+        seqs, batch_size=len(seqs), shuffle=False,
+        collate_fn=collate_function, num_workers=0,
+    )
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     t0 = time.time()
-    train_mini_transformer(model, dataloader, None, optimizer, lambda_l2, EPOCHS, device)
+    train_mini_transformer(model, dataloader, eval_loader, optimizer, lambda_l2, EPOCHS, device)
     print(f"\nTraining done in {time.time() - t0:.1f}s.\n")
 
     # 3. V-sweep on the same trained model.
